@@ -1,12 +1,14 @@
 import logging
+import os
 import re
 import string
 import pprint
 from typing import List, TypeVar, Tuple, Dict, Union, Optional
 
 import httplib2
+import psycopg2
 from googleapiclient import discovery, http
-from oauth2client import client, file, tools
+from oauth2client import client, tools
 
 log = logging.getLogger('placebo.google_client')
 
@@ -43,11 +45,15 @@ Response = Dict[str, Union[str, int, 'Request']]
 
 class Google:
     def __init__(self):
-        store = file.Storage('google_token.json')
+        store = PostgresStorage()
         creds = store.get()
         if not creds or creds.invalid:
-            flow = client.flow_from_clientsecrets('google_credentials.json',
-                                                  SCOPE)
+            flow = client.OAuth2WebServerFlow(
+                client_id=os.environ['PLACEBO_GOOGLE_CLIENT_ID'],
+                client_secret=os.environ['PLACEBO_GOOGLE_CLIENT_SECRET'],
+                scope=SCOPE,
+                auth_uri='https://accounts.google.com/o/oauth2/auth',
+                token_uri='https://www.googleapis.com/oauth2/v3/token')
             creds = tools.run_flow(flow, store)
         http = creds.authorize(httplib2.Http(cache='.cache'))
         self.sheets = discovery.build('sheets', 'v4', http=http).spreadsheets()
@@ -236,3 +242,31 @@ def log_and_send(desc: str, request: http.HttpRequest) -> Response:
     response = request.execute()
     log.debug(pprint.pformat(response))
     return response
+
+
+class PostgresStorage(client.Storage):
+    def __init__(self, lock=None):
+        super().__init__(lock)
+        self.conn = psycopg2.connect(os.environ['DATABASE_URL'],
+                                     sslmode='require')
+
+    def locked_get(self) -> client.Credentials:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT value FROM credentials WHERE name = 'google_token';")
+        assert cursor.rowcount == 1
+        [(creds_json,)] = cursor.fetchall()
+        return client.GoogleCredentials.from_json(creds_json)
+
+    def locked_put(self, credentials: client.Credentials) -> None:
+        cursor = self.conn.cursor()
+        json = credentials.to_json()
+        cursor.execute("INSERT INTO credentials (name, value) "
+                       "VALUES ('google_token', %s) "
+                       "ON CONFLICT (name) DO UPDATE SET value = %s "
+                       "WHERE credentials.name = 'google_token';",
+                       (json, json))
+        self.conn.commit()
+
+    def locked_delete(self):
+        raise NotImplementedError

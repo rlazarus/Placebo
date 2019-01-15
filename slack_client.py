@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import pprint
 from typing import Optional
 
@@ -10,9 +11,7 @@ log = logging.getLogger('placebo.slack_client')
 
 class Slack:
     def __init__(self):
-        with open('slack_token.txt') as f:
-            token = f.read()
-        self.client = SlackClient(token)
+        self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
 
     def create_channel(self, puzzle_url: str, doc_url: str,
                        prefix: Optional[str] = None) -> str:
@@ -79,11 +78,9 @@ class Slack:
 
     def log_and_send(self, desc: str, request: str, **kwargs) -> dict:
         log.info(desc)
-        log.debug('%s\n%s', request, pprint.pformat(kwargs))
         response = self.client.api_call(request, **kwargs)
-        if response['ok']:
-            log.debug(pprint.pformat(response))
-        else:
-            log.error(pprint.pformat(response))
-            raise AssertionError
+        level = logging.DEBUG if response['ok'] else logging.ERROR
+        log.log(level, '%s\n%s', request, pprint.pformat(kwargs))
+        log.log(level, pprint.pformat(response))
+        assert response['ok']
         return response

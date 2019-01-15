@@ -3,6 +3,7 @@
 __pycache__/
 venv/
 
+.env
 google_credentials.json
 google_token.json
 slack_token.txt

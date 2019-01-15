@@ -16,10 +16,10 @@ def hello():
     return 'Hello World!'
 
 
-@app.route('/unlock', methods=['POST'])  #### next: test
+@app.route('/unlock', methods=['POST'])
 def unlock():
     try:
-        round_name, puzzle_name, puzzle_url = split_unlock(request.form['text'])
+        puzzle_name, puzzle_url, round_name = split_unlock(request.form['text'])
     except ValueError:
         return jsonify({
             'response_type': 'ephemeral',
