@@ -1,18 +1,19 @@
 import threading
 from typing import Tuple
 
-from flask import Flask, request, jsonify
+import flask
 
 import placebo
 
-app = Flask(__name__)
+app = flask.Flask(__name__)
 placebo_app = placebo.Placebo()
 
 
 @app.route('/unlock', methods=['POST'])
 def unlock():
     try:
-        puzzle_name, puzzle_url, round_name = split_unlock(request.form['text'])
+        puzzle_name, puzzle_url, round_name = split_unlock(
+            flask.request.form['text'])
     except ValueError:
         return ephemeral(
             'Try it like this: '
@@ -25,7 +26,7 @@ def unlock():
 @app.route('/correct', methods=['POST'])
 def correct():
     try:
-        puzzle_name, solution = split_correct(request.form['text'])
+        puzzle_name, solution = split_correct(flask.request.form['text'])
     except ValueError:
         return ephemeral(
             'Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
@@ -34,13 +35,9 @@ def correct():
     return ephemeral(f'Marking {puzzle_name} solved...')
 
 
-def ephemeral(text):
-    return jsonify({'response_type': 'ephemeral', 'text': text})
-
-
 @app.route('/newround', methods=['POST'])
 def newround():
-    words = request.form['text'].split()
+    words = flask.request.form['text'].split()
     if len(words) < 2 or not is_url(words[-1]):
         return ephemeral(
             'Try it like this: /newround Round Name https://example.com/round')
@@ -48,6 +45,10 @@ def newround():
     url = words[-1]
     threading.Thread(target=placebo_app.new_round, args=(name, url)).start()
     return ephemeral(f'Adding {name}...')
+
+
+def ephemeral(text: str) -> flask.Response:
+    return flask.jsonify({'response_type': 'ephemeral', 'text': text})
 
 
 def split_unlock(text: str) -> Tuple[str, str, str]:

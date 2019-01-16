@@ -34,7 +34,7 @@ CHANNEL_PATTERNS = [
     re.compile('controlgroup.slack.com/messages/([a-z0-9_-]+)'),
     re.compile('#([a-z0-9_-]+)'),
 ]
-FILE_ID_PATTERN = re.compile("/d/([a-zA-Z0-9-_]+)")
+FILE_ID_PATTERN = re.compile('/d/([a-zA-Z0-9-_]+)')
 
 T = TypeVar('T')
 
@@ -59,7 +59,7 @@ class Google:
         self.sheets = discovery.build('sheets', 'v4', http=http).spreadsheets()
         self.files = discovery.build('drive', 'v3', http=http).files()
 
-    def create_puzzle_sheet(self, puzzle_name: str) -> str:
+    def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:
         # First create the spreadsheet...
         request = self.sheets.create(
             body={'properties': {'title': puzzle_name}})

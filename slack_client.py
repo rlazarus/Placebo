@@ -56,11 +56,11 @@ class Slack:
                                          'conversations.list', cursor=cursor,
                                          exclude_archived=True, limit=100,
                                          types='public_channel')
-            assert response["ok"]
-            for channel in response["channels"]:
-                if channel["name"] == channel_name:
-                    return channel["id"]
-            next_cursor = response["response_metadata"].get("next_cursor")
+            assert response['ok']
+            for channel in response['channels']:
+                if channel['name'] == channel_name:
+                    return channel['id']
+            next_cursor = response['response_metadata'].get('next_cursor')
             if not next_cursor:
                 break
             cursor = next_cursor

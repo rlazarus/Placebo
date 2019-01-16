@@ -22,7 +22,7 @@ class Placebo:
             if self.google.lookup(meta_name) is not None:
                 raise KeyError(
                     f'Puzzle "{meta_name}" is already in the tracker.')
-            doc_url = self.google.create_puzzle_sheet(meta_name)
+            doc_url = self.google.create_puzzle_spreadsheet(meta_name)
             channel_name = self.slack.create_channel(round_url, doc_url,
                                                      prefix='meta')
             self.google.add_row(round_name, meta_name, 'L', round_url, doc_url,
@@ -34,11 +34,10 @@ class Placebo:
             if self.google.lookup(puzzle_name) is not None:
                 raise KeyError(
                     f'Puzzle "{puzzle_name}" is already in the tracker.')
-            doc_url = self.google.create_puzzle_sheet(puzzle_name)
+            doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
             channel_name = self.slack.create_channel(puzzle_url, doc_url)
             self.google.add_row(round_name, puzzle_name, 'M', puzzle_url,
-                                doc_url,
-                                channel_name)
+                                doc_url, channel_name)
 
     def solved_puzzle(self, puzzle_name: str, solution: str):
         with self.lock:
