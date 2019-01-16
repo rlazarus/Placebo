@@ -9,28 +9,17 @@ app = Flask(__name__)
 placebo_app = placebo.Placebo()
 
 
-@app.route('/')
-def hello():
-    return 'Hello World!'
-
-
 @app.route('/unlock', methods=['POST'])
 def unlock():
     try:
         puzzle_name, puzzle_url, round_name = split_unlock(request.form['text'])
     except ValueError:
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text':
-                'Try it like this: '
-                '`/unlock Puzzle Name https://example.com/puzzle Round Name'
-        })
+        return ephemeral(
+            'Try it like this: '
+            '`/unlock Puzzle Name https://example.com/puzzle Round Name`')
     threading.Thread(target=placebo_app.new_puzzle,
                      args=(round_name, puzzle_name, puzzle_url)).start()
-    return jsonify({
-        'response_type': 'ephemeral',
-        'text': f'Adding {puzzle_name}...'
-    })
+    return ephemeral(f'Adding {puzzle_name}...')
 
 
 @app.route('/correct', methods=['POST'])
@@ -38,21 +27,32 @@ def correct():
     try:
         puzzle_name, solution = split_correct(request.form['text'])
     except ValueError:
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': 'Try it like this: /correct Puzzle Name PUZZLE SOLUTION'})
+        return ephemeral(
+            'Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
     threading.Thread(target=placebo_app.solved_puzzle,
                      args=(puzzle_name, solution)).start()
-    return jsonify({
-        'response_type': 'ephemeral',
-        'text': f'Marking {puzzle_name} solved...'
-    })
+    return ephemeral(f'Marking {puzzle_name} solved...')
+
+
+def ephemeral(text):
+    return jsonify({'response_type': 'ephemeral', 'text': text})
+
+
+@app.route('/newround', methods=['POST'])
+def newround():
+    words = request.form['text'].split()
+    if len(words) < 2 or not is_url(words[-1]):
+        return ephemeral(
+            'Try it like this: /newround Round Name https://example.com/round')
+    name = ' '.join(words[:-1])
+    url = words[-1]
+    threading.Thread(target=placebo_app.new_round, args=(name, url)).start()
+    return ephemeral(f'Adding {name}...')
 
 
 def split_unlock(text: str) -> Tuple[str, str, str]:
     words = text.split()
-    url_indexes = [i for i, word in enumerate(words)
-                   if word.startswith('http') and '/' in word]
+    url_indexes = [i for i, word in enumerate(words) if is_url(word)]
     if len(url_indexes) != 1:
         raise ValueError(f'{len(url_indexes)} URLs, expected exactly 1')
     [url_index] = url_indexes
@@ -73,3 +73,7 @@ def split_correct(text: str) -> Tuple[str, str]:
     if not puzzle_name or not solution:
         raise ValueError('No caps, or all caps')
     return puzzle_name, solution
+
+
+def is_url(word: str) -> bool:
+    return word.startswith('http') and '/' in word
