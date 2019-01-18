@@ -16,7 +16,7 @@ log = logging.getLogger('placebo.google_client')
 SCOPE = 'https://www.googleapis.com/auth/drive'
 
 # Copy of 2018 version.
-TRACKER_SPREADSHEET_ID = '1wSIaKgwqsCX7ITCW1zywZO5kLX2joq_vi0V-Xv5_bak'
+TRACKER_SPREADSHEET_ID = '1FctlfZu7ECWEqWCHDNm7AD8iT_ucik7Cv9PB1aRPFR8'
 
 # Comes after "#gid=" in the URL.
 # Here and throughout, a "spreadsheet" is the entire sharable unit, and a
@@ -25,8 +25,8 @@ TRACKER_SPREADSHEET_ID = '1wSIaKgwqsCX7ITCW1zywZO5kLX2joq_vi0V-Xv5_bak'
 TRACKER_SHEET_ID = 287461192
 
 # 2018 version.
-PUZZLES_FOLDER_ID = '1sSNSzDzbwLP7h4GfWR_5DErPPpnxBkFE'
-SOLVED_FOLDER_ID = '1s_KGLU761Mn8xotUpr1rEWi8JWOq8GAw'
+PUZZLES_FOLDER_ID = '1jN3bvKf2l85rlBG6E6hpLj_SgMxnJOZv'
+SOLVED_FOLDER_ID = '1gpTNbh3EJWUk32p0t1QylzVmG5nHtNZ3'
 
 NAME_CHARACTERS = string.ascii_lowercase + string.digits + '_'
 
