@@ -116,7 +116,8 @@ class Slack:
         oldest = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
         response = self.log_and_send('Getting latest messages',
                                      'conversations.history',
-                                     channel=channel_id, oldest=oldest, limit=1)
+                                     channel=channel_id,
+                                     oldest=oldest.timestamp(), limit=1)
         if not response['ok']:
             # Just play it safe.
             return True
