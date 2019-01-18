@@ -2,11 +2,13 @@ import datetime
 import logging
 import os
 import pprint
-from typing import Optional
+from typing import Optional, Tuple
 
 from slackclient import SlackClient
 
 log = logging.getLogger('placebo.slack_client')
+
+UNLOCKS_CHANNEL_ID = 'CFGPNU203'
 
 
 class Slack:
@@ -14,7 +16,7 @@ class Slack:
         self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
 
     def create_channel(self, puzzle_url: str, doc_url: str,
-                       prefix: Optional[str] = None) -> str:
+                       prefix: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]
         name = f'{prefix}_{puzzle_slug}' if prefix else puzzle_slug
         response = self.log_and_send('Creating channel', 'channels.create',
@@ -25,7 +27,25 @@ class Slack:
 
         self.log_and_send('Setting topic', 'channels.setTopic', channel=id,
                           topic=f'{puzzle_url} | {doc_url}')
-        return name
+        return name, id
+
+    def announce_unlock(self, round_name: Optional[str], puzzle_name: str,
+                        puzzle_url: str, channel_name: str, channel_id: str,
+                        round_color: str) -> None:
+        lines = []
+        if round_name:
+            lines.append(f'Round: {round_name}')
+        lines.append(f'<#{channel_id}|{channel_name}>')
+        attach = {
+            'color': round_color,
+            'title': puzzle_name,
+            'title_link': puzzle_url,
+            'text': '\n'.join(lines),
+        }
+        self.log_and_send('Announcing unlock', 'chat.postMessage',
+                          channel=UNLOCKS_CHANNEL_ID, as_user=False,
+                          username='Control Group', icon_emoji=':robot:',
+                          attachments=[attach])
 
     def solved(self, channel_name: str, answer: str) -> None:
         channel_id = self.get_channel_id_by_name(channel_name)

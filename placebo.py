@@ -23,8 +23,8 @@ class Placebo:
                 raise KeyError(
                     f'Puzzle "{meta_name}" is already in the tracker.')
             doc_url = self.google.create_puzzle_spreadsheet(meta_name)
-            channel_name = self.slack.create_channel(round_url, doc_url,
-                                                     prefix='meta')
+            channel_name, channel_id = self.slack.create_channel(
+                round_url, doc_url, prefix='meta')
             self.google.add_row(round_name, meta_name, 'L', round_url, doc_url,
                                 channel_name)
 
@@ -35,9 +35,12 @@ class Placebo:
                 raise KeyError(
                     f'Puzzle "{puzzle_name}" is already in the tracker.')
             doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
-            channel_name = self.slack.create_channel(puzzle_url, doc_url)
-            self.google.add_row(round_name, puzzle_name, 'M', puzzle_url,
-                                doc_url, channel_name)
+            channel_name, channel_id = self.slack.create_channel(puzzle_url,
+                                                                 doc_url)
+            round_color = self.google.add_row(round_name, puzzle_name, 'M',
+                                              puzzle_url, doc_url, channel_name)
+            self.slack.announce_unlock(round_name, puzzle_name, puzzle_url,
+                                       channel_name, channel_id, round_color)
 
     def solved_puzzle(self, puzzle_name: str, solution: str):
         with self.lock:

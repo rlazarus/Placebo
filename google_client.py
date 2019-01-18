@@ -73,7 +73,7 @@ class Google:
         return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str,
-                puzzle_url: str, doc_url: str, channel: str) -> None:
+                puzzle_url: str, doc_url: str, channel: str) -> str:
         assert priority in {'-', 'L', 'M', 'H'}
         assert not channel.startswith('#')
 
@@ -126,6 +126,8 @@ class Google:
         batch_request = self.sheets.batchUpdate(
             spreadsheetId=TRACKER_SPREADSHEET_ID, body={'requests': requests})
         log_and_send('Adding row to tracker', batch_request)
+
+        return "#ccc"  # TODO: Grab the round color and return it.
 
     def lookup(self, puzzle_name: str) -> Optional[Tuple[int, str, str]]:
         request = self.sheets.values().get(spreadsheetId=TRACKER_SPREADSHEET_ID,
