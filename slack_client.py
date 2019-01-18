@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import pprint
+import random
 from typing import Optional, Tuple
 
 from slackclient import SlackClient
@@ -9,6 +10,14 @@ from slackclient import SlackClient
 log = logging.getLogger('placebo.slack_client')
 
 UNLOCKS_CHANNEL_ID = 'CFGPNU203'
+
+SUCCESS_EMOJI = ['sunglasses', 'hugging_face', 'dancer', 'muscle', 'thumbsup',
+                 'clap', 'raised_hands', 'brain', 'boom', 'fireworks',
+                 'sparkler', 'sparkles', 'balloon', 'tada', 'confetti_ball',
+                 'medal', 'trophy', 'first_place_medal', 'dart', 'star',
+                 'stars', 'rainbow', 'fire', 'musical_note', 'notes',
+                 'ballot_box_with_check', '100', 'checkered_flag', 'awesome',
+                 'bananadance', 'bb8', 'parrot', 'woo']
 
 
 class Slack:
@@ -64,8 +73,12 @@ class Slack:
         channel_id = self.get_channel_id_by_name(channel_name)
         archive = not self.is_channel_active(channel_id)
 
+        num_emoji = random.choice([3, 4, 4, 5, 5, 6])
+        emoji = ''.join(
+            f':{i}:' for i in random.sample(SUCCESS_EMOJI, num_emoji))
+
         text = (f'This puzzle is solved! "{answer}" is correct.'
-                f' Congratulations!\n\n')
+                f' Congratulations! {emoji}\n\n')
         if archive:
             text += ('This channel will be archived, but feel free to '
                      'un-archive it if you want to keep talking.')
