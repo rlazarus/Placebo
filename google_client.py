@@ -83,7 +83,8 @@ class Google:
                                   includeGridData=True)
         response = log_and_send('Looking up the Round column', request)
         rows = response['sheets'][0]['data'][0]['rowData']
-        round_names = [row['values'][0].get('formattedValue', '')
+        round_names = [(row['values'][0].get('formattedValue', '')
+                        if 'values' in row else '')
                        for row in rows]
         canon_rounds = [canonicalize(r) for r in round_names]
         if canonicalize(round_name) in canon_rounds:
