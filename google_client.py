@@ -40,7 +40,7 @@ T = TypeVar('T')
 
 # This is an incomplete list of value types -- others are possible but these are
 # all we've used.
-Response = Dict[str, Union[str, int, 'Request']]
+Response = Dict[str, Union[str, int, 'Response', List['Response']]]
 
 
 class Google:
@@ -78,23 +78,29 @@ class Google:
         assert not channel.startswith('#')
 
         # Find the last row that matches this round; we'll insert below it.
-        request = self.sheets.values().get(spreadsheetId=TRACKER_SPREADSHEET_ID,
-                                           range='Puzzle List!A:A',
-                                           majorDimension='COLUMNS')
+        request = self.sheets.get(spreadsheetId=TRACKER_SPREADSHEET_ID,
+                                  ranges='Puzzle List!A:A',
+                                  includeGridData=True)
         response = log_and_send('Looking up the Round column', request)
-        rounds = response['values'][0]
-        canon_rounds = [canonicalize(r) for r in rounds]
+        rows = response['sheets'][0]['data'][0]['rowData']
+        round_names = [row['values'][0].get('formattedValue', '')
+                       for row in rows]
+        canon_rounds = [canonicalize(r) for r in round_names]
         if canonicalize(round_name) in canon_rounds:
             row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
+            cell = rows[row_index - 1]['values'][0]
+            round_color = hex_color(cell['effectiveFormat']['backgroundColor'])
         else:
             # If we've never seen this round before, insert at the bottom of the
             # table. That is, before the first blank cell not in the header.
             try:
-                row_index = rounds.index('', 2)
+                row_index = round_names.index('', 2)
             except ValueError:
                 # There are no blank round cells after the header? Sounds fake,
                 # but okay -- insert at the very end of the sheet.
-                row_index = len(rounds)
+                row_index = len(round_names)
+            # If it's a new round, pick a boring default color for the unlock.
+            round_color = "#ccc"
 
         # First insert a new row at that location...
         requests = [{
@@ -127,7 +133,7 @@ class Google:
             spreadsheetId=TRACKER_SPREADSHEET_ID, body={'requests': requests})
         log_and_send('Adding row to tracker', batch_request)
 
-        return "#ccc"  # TODO: Grab the round color and return it.
+        return round_color
 
     def lookup(self, puzzle_name: str) -> Optional[Tuple[int, str, str]]:
         request = self.sheets.values().get(spreadsheetId=TRACKER_SPREADSHEET_ID,
@@ -236,6 +242,11 @@ def link_to_channel(link: str) -> str:
         if match:
             return match.group(1)
     raise ValueError
+
+
+def hex_color(rgb: Dict[str, float]) -> str:
+    return '#' + ''.join(format(int(rgb.get(i, 0) * 255), '02x')
+                         for i in ['red', 'green', 'blue'])
 
 
 def log_and_send(desc: str, request: http.HttpRequest) -> Response:
