@@ -27,6 +27,7 @@ class Placebo:
                 round_url, doc_url, prefix='meta')
             self.google.add_row(round_name, meta_name, 'L', round_url, doc_url,
                                 channel_name)
+        self.slack.announce_round(round_name, round_url)
 
     def new_puzzle(self, round_name: str, puzzle_name: str,
                    puzzle_url: str) -> None:
@@ -39,8 +40,8 @@ class Placebo:
                                                                  doc_url)
             round_color = self.google.add_row(round_name, puzzle_name, 'M',
                                               puzzle_url, doc_url, channel_name)
-            self.slack.announce_unlock(round_name, puzzle_name, puzzle_url,
-                                       channel_name, channel_id, round_color)
+        self.slack.announce_unlock(round_name, puzzle_name, puzzle_url,
+                                   channel_name, channel_id, round_color)
 
     def solved_puzzle(self, puzzle_name: str, solution: str):
         with self.lock:

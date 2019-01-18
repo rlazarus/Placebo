@@ -47,6 +47,19 @@ class Slack:
                           username='Control Group', icon_emoji=':robot:',
                           attachments=[attach])
 
+    def announce_round(self, round_name, round_url):
+        attach = {
+            'color': '#ccc',
+            'title': round_name,
+            'title_link': round_url,
+            'text': '*New round unlocked!*',
+            'mrkdwn_in': 'text',
+        }
+        self.log_and_send('Announcing round unlock', 'chat.postMessage',
+                          channel=UNLOCKS_CHANNEL_ID, as_user=False,
+                          usename='Control Group', icon_emoji=':robot:',
+                          attachments=[attach])
+
     def solved(self, channel_name: str, answer: str) -> None:
         channel_id = self.get_channel_id_by_name(channel_name)
         archive = not self.is_channel_active(channel_id)
