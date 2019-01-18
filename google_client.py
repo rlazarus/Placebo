@@ -136,7 +136,8 @@ class Google:
 
         return round_color
 
-    def lookup(self, puzzle_name: str) -> Optional[Tuple[int, str, str]]:
+    def lookup(self, puzzle_name: str) -> Optional[
+                                              Tuple[int, str, Optional[str]]]:
         request = self.sheets.values().get(spreadsheetId=TRACKER_SPREADSHEET_ID,
                                            range='Puzzle List!A:G')
         response = log_and_send('Fetching tracking sheet', request)
@@ -239,12 +240,12 @@ def channel_to_link(channel: Optional[str]) -> str:
             f'"#{channel}")')
 
 
-def link_to_channel(link: str) -> str:
+def link_to_channel(link: str) -> Optional[str]:
     for pattern in CHANNEL_PATTERNS:
         match = pattern.search(link)
         if match:
             return match.group(1)
-    raise ValueError
+    raise None
 
 
 def hex_color(rgb: Dict[str, float]) -> str:

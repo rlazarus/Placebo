@@ -41,6 +41,8 @@ class Placebo:
             if lookup is None:
                 raise KeyError(f'Puzzle "{puzzle_name}" not found.')
             row_index, doc_url, channel_name = lookup
-            self.google.mark_doc_solved(doc_url)
+            if doc_url:
+                self.google.mark_doc_solved(doc_url)
             self.google.mark_row_solved(row_index, solution)
-            self.slack.solved(channel_name, solution)
+            if channel_name:
+                self.slack.solved(channel_name, solution)
