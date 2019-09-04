@@ -9,8 +9,6 @@ from slackclient import SlackClient
 
 log = logging.getLogger('placebo.slack_client')
 
-UNLOCKS_CHANNEL_ID = 'CFGPNU203'
-
 SUCCESS_EMOJI = ['sunglasses', 'hugging_face', 'dancer', 'muscle', 'thumbsup',
                  'clap', 'raised_hands', 'brain', 'boom', 'fireworks',
                  'sparkler', 'sparkles', 'balloon', 'tada', 'confetti_ball',
@@ -52,9 +50,9 @@ class Slack:
             'text': '\n'.join(lines),
         }
         self.log_and_send('Announcing unlock', 'chat.postMessage',
-                          channel=UNLOCKS_CHANNEL_ID, as_user=False,
-                          username='Control Group', icon_emoji=':robot:',
-                          attachments=[attach])
+                          channel=os.environ['PLACEBO_UNLOCKS_CHANNEL_ID'],
+                          as_user=False, username='Control Group',
+                          icon_emoji=':robot:', attachments=[attach])
 
     def announce_round(self, round_name, round_url):
         attach = {
@@ -65,9 +63,9 @@ class Slack:
             'mrkdwn_in': 'text',
         }
         self.log_and_send('Announcing round unlock', 'chat.postMessage',
-                          channel=UNLOCKS_CHANNEL_ID, as_user=False,
-                          username='Control Group', icon_emoji=':robot:',
-                          attachments=[attach])
+                          channel=os.environ['PLACEBO_UNLOCKS_CHANNEL_ID'],
+                          as_user=False, username='Control Group',
+                          icon_emoji=':robot:', attachments=[attach])
 
     def solved(self, channel_name: str, answer: str) -> None:
         channel_id = self.get_channel_id_by_name(channel_name)
