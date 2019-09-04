@@ -66,7 +66,7 @@ class Slack:
         }
         self.log_and_send('Announcing round unlock', 'chat.postMessage',
                           channel=UNLOCKS_CHANNEL_ID, as_user=False,
-                          usename='Control Group', icon_emoji=':robot:',
+                          username='Control Group', icon_emoji=':robot:',
                           attachments=[attach])
 
     def solved(self, channel_name: str, answer: str) -> None:
