@@ -239,7 +239,7 @@ def link_to_channel(link: str) -> Optional[str]:
         match = pattern.search(link)
         if match:
             return match.group(1)
-    raise None
+    return None
 
 
 def hex_color(rgb: Dict[str, float]) -> str:
