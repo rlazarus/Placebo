@@ -1,4 +1,3 @@
-import threading
 from typing import Tuple
 
 import flask
@@ -10,7 +9,7 @@ placebo_app = placebo.Placebo()
 
 
 @app.route('/unlock', methods=['POST'])
-def unlock():
+def unlock() -> flask.Response:
     try:
         puzzle_name, puzzle_url, round_name = split_unlock(
             flask.request.form['text'])
@@ -18,32 +17,30 @@ def unlock():
         return ephemeral(
             'Try it like this: '
             '`/unlock Puzzle Name https://example.com/puzzle Round Name`')
-    threading.Thread(target=placebo_app.new_puzzle,
-                     args=(round_name, puzzle_name, puzzle_url)).start()
+    placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url)
     return ephemeral(f'Adding {puzzle_name}...')
 
 
 @app.route('/correct', methods=['POST'])
-def correct():
+def correct() -> flask.Response:
     try:
         puzzle_name, solution = split_correct(flask.request.form['text'])
     except ValueError:
         return ephemeral(
             'Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
-    threading.Thread(target=placebo_app.solved_puzzle,
-                     args=(puzzle_name, solution)).start()
+    placebo_app.solved_puzzle(puzzle_name, solution)
     return ephemeral(f'Marking {puzzle_name} solved...')
 
 
 @app.route('/newround', methods=['POST'])
-def newround():
+def newround() -> flask.Response:
     words = flask.request.form['text'].split()
     if len(words) < 2 or not is_url(words[-1]):
         return ephemeral(
             'Try it like this: /newround Round Name https://example.com/round')
     name = ' '.join(words[:-1])
     url = words[-1]
-    threading.Thread(target=placebo_app.new_round, args=(name, url)).start()
+    placebo_app.new_round(name, url)
     return ephemeral(f'Adding {name}...')
 
 
