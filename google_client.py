@@ -46,6 +46,15 @@ class Google:
         self.sheets = discovery.build('sheets', 'v4', http=http).spreadsheets()
         self.files = discovery.build('drive', 'v3', http=http).files()
 
+        # Here and throughout, a "spreadsheet" is the entire sharable unit, and
+        # a "sheet" is the page (tabs at the bottom). This is kind of
+        # unfortunate but matches the names used in Google Sheets and its API.
+        self.puzzle_list_spreadsheet_id = (
+            os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID'])
+        self.puzzle_list_sheet_id = os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID']
+        self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID']
+        self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
+
     def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:
         # First create the spreadsheet...
         request = self.sheets.create(
@@ -55,9 +64,8 @@ class Google:
         url = response['spreadsheetUrl']
 
         # ... then put it in the puzzles folder (which also sets sharing).
-        request = self.files.update(
-            fileId=doc_id,
-            addParents=os.environ['PLACEBO_PUZZLES_FOLDER_ID'])
+        request = self.files.update(fileId=doc_id,
+                                    addParents=self.puzzles_folder_id)
         log_and_send('Adding spreadsheet to Puzzles folder', request)
         return url
 
@@ -67,10 +75,9 @@ class Google:
         assert channel is None or not channel.startswith('#')
 
         # Find the last row that matches this round; we'll insert below it.
-        request = self.sheets.get(
-            spreadsheetId=os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID'],
-            ranges='Puzzle List!A:A',
-            includeGridData=True)
+        request = self.sheets.get(spreadsheetId=self.puzzle_list_spreadsheet_id,
+                                  ranges='Puzzle List!A:A',
+                                  includeGridData=True)
         response = log_and_send('Looking up the Round column', request)
         rows = response['sheets'][0]['data'][0]['rowData']
         round_names = [(row['values'][0].get('formattedValue', '')
@@ -97,7 +104,7 @@ class Google:
         requests = [{
             'insertDimension': {
                 'range': {
-                    'sheetId': os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID'],
+                    'sheetId': self.puzzle_list_sheet_id,
                     'dimension': 'ROWS',
                     'startIndex': row_index,
                     'endIndex': row_index + 1,
@@ -114,14 +121,14 @@ class Google:
                 'rows': [row_data(cell_values)],
                 'fields': 'userEnteredValue',
                 'start': {
-                    'sheetId': os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID'],
+                    'sheetId': self.puzzle_list_sheet_id,
                     'rowIndex': row_index,
                     'columnIndex': 0,
                 },
             },
         })
         batch_request = self.sheets.batchUpdate(
-            spreadsheetId=os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID'],
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
             body={'requests': requests})
         log_and_send('Adding row to tracker', batch_request)
 
@@ -130,7 +137,7 @@ class Google:
     def lookup(self, puzzle_name: str) -> Optional[
                                               Tuple[int, str, Optional[str]]]:
         request = self.sheets.values().get(
-            spreadsheetId=os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID'],
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
             range='Puzzle List!A:G')
         response = log_and_send('Fetching tracking sheet', request)
         puzzle_name = canonicalize(puzzle_name)
@@ -171,9 +178,9 @@ class Google:
         # realize the puzzle is solved. Moving to a separate folder keeps the
         # Puzzles folder uncluttered, especially since all the "[SOLVED]"
         # prefixes sort to the top.)
-        request = self.files.update(
-            fileId=file_id, addParents=os.environ['PLACEBO_SOLVED_FOLDER_ID'],
-            removeParents=os.environ['PLACEBO_PUZZLES_FOLDER_ID'])
+        request = self.files.update(fileId=file_id,
+                                    addParents=self.solved_folder_id,
+                                    removeParents=self.puzzles_folder_id)
         log_and_send('Moving puzzle doc to Solved folder', request)
 
     def mark_row_solved(self, row_index: int, solution: str) -> None:
@@ -182,7 +189,7 @@ class Google:
                 'rows': [row_data(['-'])],
                 'fields': 'userEnteredValue',
                 'start': {
-                    'sheetId': os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID'],
+                    'sheetId': self.puzzle_list_sheet_id,
                     'rowIndex': row_index,
                     'columnIndex': 2,  # priority
                 }
@@ -192,14 +199,14 @@ class Google:
                 'rows': [row_data(['Solved', solution])],
                 'fields': 'userEnteredValue',
                 'start': {
-                    'sheetId': os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID'],
+                    'sheetId': self.puzzle_list_sheet_id,
                     'rowIndex': row_index,
                     'columnIndex': 6,  # status, solution
                 }
             }
         }]
         batch_request = self.sheets.batchUpdate(
-            spreadsheetId=os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID'],
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
             body={'requests': requests})
         log_and_send('Updating tracker row', batch_request)
 

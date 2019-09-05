@@ -21,6 +21,7 @@ SUCCESS_EMOJI = ['sunglasses', 'hugging_face', 'dancer', 'muscle', 'thumbsup',
 class Slack:
     def __init__(self):
         self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
+        self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
 
     def create_channel(self, puzzle_url: str, doc_url: str,
                        prefix: Optional[str] = None) -> Tuple[str, str]:
@@ -50,7 +51,7 @@ class Slack:
             'text': '\n'.join(lines),
         }
         self.log_and_send('Announcing unlock', 'chat.postMessage',
-                          channel=os.environ['PLACEBO_UNLOCKS_CHANNEL_ID'],
+                          channel=self.unlocks_channel_id,
                           as_user=False, username='Control Group',
                           icon_emoji=':robot:', attachments=[attach])
 
@@ -63,7 +64,7 @@ class Slack:
             'mrkdwn_in': 'text',
         }
         self.log_and_send('Announcing round unlock', 'chat.postMessage',
-                          channel=os.environ['PLACEBO_UNLOCKS_CHANNEL_ID'],
+                          channel=self.unlocks_channel_id,
                           as_user=False, username='Control Group',
                           icon_emoji=':robot:', attachments=[attach])
 
