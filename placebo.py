@@ -1,7 +1,9 @@
 import logging
 import queue
 import threading
-from typing import Callable
+from typing import Callable, Optional
+
+import requests
 
 import google_client
 import slack_client
@@ -17,6 +19,10 @@ class Placebo:
         self.google = google_client.Google()
         self.slack = slack_client.Slack()
         self.queue: queue.Queue[Callable[[], None]] = queue.Queue()
+        # If set, it's the round in which the most recent puzzle was unlocked.
+        # It's used as the default round for the unlock dialog, to make repeated
+        # unlocks easier.
+        self.last_round: Optional[str] = None
         threading.Thread(target=self._worker_thread, daemon=True).start()
 
     # The public methods don't do any work -- they just enqueue a call to the
@@ -30,9 +36,10 @@ class Placebo:
         self.queue.put(lambda: self._new_round(round_name, round_url))
 
     def new_puzzle(self, round_name: str, puzzle_name: str,
-                   puzzle_url: str) -> None:
+                   puzzle_url: str, response_url: Optional[str] = None) -> None:
         self.queue.put(
-            lambda: self._new_puzzle(round_name, puzzle_name, puzzle_url))
+            lambda: self._new_puzzle(round_name, puzzle_name, puzzle_url,
+                                     response_url))
 
     def solved_puzzle(self, puzzle_name: str, solution: str) -> None:
         self.queue.put(lambda: self._solved_puzzle(puzzle_name, solution))
@@ -51,7 +58,16 @@ class Placebo:
         self.slack.announce_round(round_name, round_url)
 
     def _new_puzzle(self, round_name: str, puzzle_name: str,
-                    puzzle_url: str) -> None:
+                    puzzle_url: str, response_url: Optional[str]) -> None:
+        if response_url:
+            log.info('Logging ephemeral acknowledgment...')
+            response = requests.post(response_url, json={
+                'text': f'Adding *{puzzle_name}*...',
+                'response_type': 'ephemeral'
+            })
+            if response.status_code != 200:
+                log.error(f"Couldn't log ephemeral acknowledgment: "
+                          f"{response.status_code} {response.text}")
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
         doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
@@ -61,6 +77,7 @@ class Placebo:
                                           puzzle_url, doc_url, channel_name)
         self.slack.announce_unlock(round_name, puzzle_name, puzzle_url,
                                    channel_name, channel_id, round_color)
+        self.last_round = round_name
 
     def _solved_puzzle(self, puzzle_name: str, solution: str) -> None:
         lookup = self.google.lookup(puzzle_name)

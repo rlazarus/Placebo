@@ -3,7 +3,7 @@ import logging
 import os
 import pprint
 import random
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from slackclient import SlackClient
 
@@ -22,6 +22,41 @@ class Slack:
     def __init__(self):
         self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
         self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
+
+    def unlock_dialog(self, trigger_id: str, rounds: List[str],
+                      last_round: Optional[str]) -> None:
+        if last_round not in rounds:
+            last_round = None
+        dialog = {
+            'title': 'Unlock new puzzle',
+            'callback_id': 'unlock',
+            'elements': [
+                {
+                    'label': 'Name',
+                    'name': 'puzzle_name',
+                    'type': 'text',
+                    'placeholder': 'Lorem Ipsum',
+                },
+                {
+                    'label': 'URL',
+                    'name': 'puzzle_url',
+                    'type': 'text',
+                    'subtype': 'url',
+                    'placeholder': 'https://example.com/puzzle/lorem_ipsum',
+                },
+                {
+                    'label': 'Round',
+                    'name': 'round_name',
+                    'type': 'select',
+                    'value': last_round,
+                    'options':
+                        [{'label': round, 'value': round} for round in rounds],
+                    'placeholder': 'Choose a round',
+                }
+            ],
+        }
+        self.log_and_send('Creating /unlock dialog', 'dialog.open',
+                          trigger_id=trigger_id, dialog=dialog)
 
     def create_channel(self, puzzle_url: str, doc_url: str,
                        prefix: Optional[str] = None) -> Tuple[str, str]:

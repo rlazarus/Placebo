@@ -1,15 +1,26 @@
+import json
+import logging
 from typing import Tuple
 
 import flask
 
 import placebo
 
+log = logging.getLogger('placebo.app')
 app = flask.Flask(__name__)
 placebo_app = placebo.Placebo()
 
 
 @app.route('/unlock', methods=['POST'])
 def unlock() -> flask.Response:
+    text = flask.request.form['text']
+    log.info(text)
+    if not text:
+        rounds = placebo_app.google.all_rounds()
+        placebo_app.slack.unlock_dialog(flask.request.form['trigger_id'],
+                                        rounds, placebo_app.last_round)
+        return flask.make_response("", 200)
+
     try:
         puzzle_name, puzzle_url, round_name = split_unlock(
             flask.request.form['text'])
@@ -42,6 +53,20 @@ def newround() -> flask.Response:
     url = words[-1]
     placebo_app.new_round(name, url)
     return ephemeral(f'Adding {name}...')
+
+
+@app.route('/interact', methods=['POST'])
+def interact() -> flask.Response:
+    data = json.loads(flask.request.form['payload'])
+    if data['callback_id'] == 'unlock':
+        round_name = data['submission']['round_name']
+        puzzle_name = data['submission']['puzzle_name']
+        puzzle_url = data['submission']['puzzle_url']
+        response_url = data['response_url']
+        placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url,
+                               response_url)
+        return flask.make_response("", 200)
+    return flask.make_response("Unexpected callback_id {callback_id}", 400)
 
 
 def ephemeral(text: str) -> flask.Response:

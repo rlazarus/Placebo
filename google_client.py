@@ -163,6 +163,20 @@ class Google:
         else:
             raise KeyError(f'{len(matching_rows)} rows matching {puzzle_name}')
 
+    def all_rounds(self) -> List[str]:
+        request = self.sheets.values().get(
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
+            range='Puzzle List!A3:A',
+            majorDimension='COLUMNS')
+        response = log_and_send('Fetching round names', request)
+        column = response['values'][0]
+        result = []
+        suppress = {'', 'Hunt', 'Meta'}
+        for cell in column:
+            if cell not in suppress and cell not in result:
+                result.append(cell)
+        return result
+
     def mark_doc_solved(self, doc_url: str) -> None:
         # Find the file ID from its URL.
         match = FILE_ID_PATTERN.search(doc_url)
