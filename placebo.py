@@ -52,7 +52,7 @@ class Placebo:
 
     def _new_puzzle(self, round_name: str, puzzle_name: str,
                     puzzle_url: str) -> None:
-        if self.google.lookup(puzzle_name) is not None:
+        if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
         doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
         channel_name, channel_id = self.slack.create_channel(puzzle_url,

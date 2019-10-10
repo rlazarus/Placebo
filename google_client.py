@@ -134,6 +134,19 @@ class Google:
 
         return round_color
 
+    def exists(self, puzzle_name: str) -> bool:
+        request = self.sheets.values().get(
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
+            range='Puzzle List!B:B',
+            majorDimension='COLUMNS')
+        response = log_and_send('Checking tracking sheet for puzzle', request)
+        puzzle_name = canonicalize(puzzle_name)
+        column = response['values'][0]
+        for cell in column:
+            if puzzle_name in canonicalize(cell):
+                return True
+        return False
+
     def lookup(self, puzzle_name: str) -> Optional[
                                               Tuple[int, str, Optional[str]]]:
         request = self.sheets.values().get(
