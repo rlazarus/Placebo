@@ -6,7 +6,7 @@ from typing import Callable
 import google_client
 import slack_client
 
-logging.basicConfig()
+logging.basicConfig(format='{asctime} {name} {levelname}: {message}', style='{')
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)  # It's real noisy.
 log = logging.getLogger('placebo')
 log.setLevel(logging.INFO)
@@ -54,11 +54,20 @@ class Placebo:
                     puzzle_url: str) -> None:
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
-        doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
+        doc_id, doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
+        # Add it to the Puzzles folder in a separate thread, because it's the
+        # slowest part of the process (the HTTP request takes 1.5-2 seconds to
+        # come back!) and also the only step without an output that's needed
+        # later.
+        add_folder_thread = threading.Thread(
+            target=self.google.add_to_puzzles_folder, args=[doc_id],
+            name='add_folder')
+        add_folder_thread.start()
         channel_name, channel_id = self.slack.create_channel(puzzle_url,
                                                              doc_url)
         round_color = self.google.add_row(round_name, puzzle_name, 'M',
                                           puzzle_url, doc_url, channel_name)
+        add_folder_thread.join()
         self.slack.announce_unlock(round_name, puzzle_name, puzzle_url,
                                    channel_name, channel_id, round_color)
 

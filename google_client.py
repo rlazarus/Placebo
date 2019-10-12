@@ -55,19 +55,20 @@ class Google:
         self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID']
         self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
 
-    def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:
+    def create_puzzle_spreadsheet(self, puzzle_name: str) -> Tuple[str, str]:
         # First create the spreadsheet...
         request = self.sheets.create(
             body={'properties': {'title': puzzle_name}})
         response = log_and_send('Creating spreadsheet', request)
         doc_id = response['spreadsheetId']
         url = response['spreadsheetUrl']
+        return doc_id, url
 
+    def add_to_puzzles_folder(self, doc_id: str) -> None:
         # ... then put it in the puzzles folder (which also sets sharing).
         request = self.files.update(fileId=doc_id,
                                     addParents=self.puzzles_folder_id)
         log_and_send('Adding spreadsheet to Puzzles folder', request)
-        return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str,
                 puzzle_url: str, doc_url: str, channel: Optional[str]) -> str:
