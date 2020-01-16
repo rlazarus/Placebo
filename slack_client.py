@@ -58,6 +58,30 @@ class Slack:
         self.log_and_send('Creating /unlock dialog', 'dialog.open',
                           trigger_id=trigger_id, dialog=dialog)
 
+    def correct_dialog(self, trigger_id: str, puzzle_names: List[str]) -> None:
+        dialog = {
+            'title': 'Mark an answer correct',
+            'callback_id': 'correct',
+            'elements': [
+                {
+                    'label': 'Puzzle',
+                    'name': 'puzzle_name',
+                    'type': 'select',
+                    'options':
+                        [{'label': p, 'value': p} for p in puzzle_names],
+                    'placeholder': 'Choose a puzzle',
+                },
+                {
+                    'label': 'Answer',
+                    'name': 'answer',
+                    'type': 'text',
+                    'placeholder': 'LOREM IPSUM',
+                }
+            ]
+        }
+        self.log_and_send('Creating /correct dialog', 'dialog.open',
+                          trigger_id=trigger_id, dialog=dialog)
+
     def create_channel(self, puzzle_url: str, doc_url: str,
                        prefix: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]

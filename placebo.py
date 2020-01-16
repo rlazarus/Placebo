@@ -41,8 +41,10 @@ class Placebo:
             lambda: self._new_puzzle(round_name, puzzle_name, puzzle_url,
                                      response_url))
 
-    def solved_puzzle(self, puzzle_name: str, solution: str) -> None:
-        self.queue.put(lambda: self._solved_puzzle(puzzle_name, solution))
+    def solved_puzzle(self, puzzle_name: str, solution: str,
+                      response_url: Optional[str] = None) -> None:
+        self.queue.put(lambda: self._solved_puzzle(puzzle_name, solution,
+                                                   response_url))
 
     def _worker_thread(self) -> None:
         while True:
@@ -86,7 +88,17 @@ class Placebo:
                                    channel_name, channel_id, round_color)
         self.last_round = round_name
 
-    def _solved_puzzle(self, puzzle_name: str, solution: str) -> None:
+    def _solved_puzzle(self, puzzle_name: str, solution: str,
+                       response_url: Optional[str]) -> None:
+        if response_url:
+            log.info('Logging ephemeral acknowledgment...')
+            response = requests.post(response_url, json={
+                'text': f'Marking *{puzzle_name}* correct...',
+                'response_type': 'ephemeral'
+            })
+            if response.status_code != 200:
+                log.error(f"Couldn't log ephemeral acknowledgment: "
+                          f"{response.status_code} {response.text}")
         lookup = self.google.lookup(puzzle_name)
         if lookup is None:
             raise KeyError(f'Puzzle "{puzzle_name}" not found.')

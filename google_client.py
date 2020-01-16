@@ -177,6 +177,21 @@ class Google:
                 result.append(cell)
         return result
 
+    def unsolved_puzzles(self) -> List[str]:
+        request = self.sheets.values().get(
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
+            range='Puzzle List!B3:G'
+        )
+        response = log_and_send('Fetching puzzle names', request)
+        result = []
+        for row in response['values']:
+            if len(row) < 6:
+                continue
+            name, status = row[0], row[5]
+            if status not in {'Solved', 'Backsolved'} and name:
+                result.append(name)
+        return result
+
     def mark_doc_solved(self, doc_url: str) -> None:
         # Find the file ID from its URL.
         match = FILE_ID_PATTERN.search(doc_url)

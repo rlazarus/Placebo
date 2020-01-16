@@ -34,8 +34,13 @@ def unlock() -> flask.Response:
 
 @app.route('/correct', methods=['POST'])
 def correct() -> flask.Response:
+    text = flask.request.form['text']
+    if not text:
+        puzzle_names = placebo_app.google.unsolved_puzzles()
+        placebo_app.slack.correct_dialog(flask.request.form['trigger_id'], puzzle_names)
+        return flask.make_response("", 200)
     try:
-        puzzle_name, solution = split_correct(flask.request.form['text'])
+        puzzle_name, solution = split_correct(text)
     except ValueError:
         return ephemeral(
             'Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
@@ -65,6 +70,12 @@ def interact() -> flask.Response:
         response_url = data['response_url']
         placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url,
                                response_url)
+        return flask.make_response("", 200)
+    elif data['callback_id'] == 'correct':
+        puzzle_name = data['submission']['puzzle_name']
+        answer = data['submission']['answer']
+        response_url = data['response_url']
+        placebo_app.solved_puzzle(puzzle_name, answer, response_url)
         return flask.make_response("", 200)
     return flask.make_response("Unexpected callback_id {callback_id}", 400)
 
