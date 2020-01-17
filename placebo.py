@@ -54,7 +54,14 @@ class Placebo:
                 log.exception(e)
 
     def _new_round(self, round_name: str, round_url: str) -> None:
-        self.google.add_row(round_name, '', '-', '', '', None)
+        meta_name = round_name + " Meta"
+        if self.google.lookup(meta_name) is not None:
+            raise KeyError( f'Puzzle "{meta_name}" is already in the tracker.')
+        doc_url = self.google.create_puzzle_spreadsheet(meta_name)
+        channel_name, channel_id = self.slack.create_channel(
+            round_url, doc_url, prefix='meta')
+        self.google.add_row(round_name, meta_name, 'L', round_url, doc_url,
+                            channel_name)
         self.slack.announce_round(round_name, round_url)
 
     def _new_puzzle(self, round_name: str, puzzle_name: str,

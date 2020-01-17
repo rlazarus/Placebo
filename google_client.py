@@ -67,9 +67,9 @@ class Google:
         return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str,
-                puzzle_url: str, doc_url: str, channel: Optional[str]) -> str:
+                puzzle_url: str, doc_url: str, channel: str) -> str:
         assert priority in {'-', 'L', 'M', 'H'}
-        assert channel is None or not channel.startswith('#')
+        assert not channel.startswith('#')
 
         # Find the last row that matches this round; we'll insert below it.
         request = self.sheets.get(spreadsheetId=self.puzzle_list_spreadsheet_id,
@@ -257,9 +257,7 @@ def canonicalize(name: str) -> str:
                           name.lower().replace('-', '_').replace(' ', '_')))
 
 
-def channel_to_link(channel: Optional[str]) -> str:
-    if channel is None:
-        return ''
+def channel_to_link(channel: str) -> str:
     return (f'=HYPERLINK('
             f'"https://controlgroup.slack.com/app_redirect?channel={channel}",'
             f'"#{channel}")')
