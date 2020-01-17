@@ -59,23 +59,48 @@ class Placebo:
         meta_name = round_name + " Meta"
         if self.google.lookup(meta_name) is not None:
             raise KeyError(f'Puzzle "{meta_name}" is already in the tracker.')
-        doc_url = self.google.create_puzzle_spreadsheet(meta_name)
-        channel_name, channel_id = self.slack.create_channel(round_url, doc_url, prefix='meta')
-        self.google.add_row(round_name, meta_name, 'L', round_url, doc_url, channel_name)
+
+        # Creating the spreadsheet is super slow, so do everything else first...
+        self.last_round = round_name
+        channel_name, channel_id = self.slack.create_channel(round_url, prefix='meta')
+        self.google.add_row(round_name, meta_name, 'L', round_url, channel_name)
         self.slack.announce_round(round_name, round_url)
+
+        # ... then wait.
+        doc_url = self.google.create_puzzle_spreadsheet(meta_name)
+
+        # Once we have a URL for the spreadsheet, go back and fill it in.
+        try:
+            self.google.set_doc_url(meta_name, doc_url)
+        except google_client.UrlConflictError as e:
+            log.exception('Doc URL was set before we got to it.')
+            doc_url = e.found_url
+        self.slack.set_topic(channel_id, round_url, doc_url)
 
     def _new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
                     response_url: Optional[str]) -> None:
         _ephemeral_ack(f'Adding *{puzzle_name}*...', response_url)
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
-        doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
-        channel_name, channel_id = self.slack.create_channel(puzzle_url, doc_url)
-        round_color = self.google.add_row(round_name, puzzle_name, 'M', puzzle_url, doc_url,
-                                          channel_name)
+
+        # Creating the spreadsheet is super slow, so do everything else first...
+        self.last_round = round_name
+        channel_name, channel_id = self.slack.create_channel(puzzle_url)
+        round_color = self.google.add_row(round_name, puzzle_name, 'M', puzzle_url, channel_name)
         self.slack.announce_unlock(round_name, puzzle_name, puzzle_url, channel_name, channel_id,
                                    round_color)
-        self.last_round = round_name
+
+        # ... then wait. Any further unlocks/solves will still wait in the queue, which isn't great,
+        # but at least there was immediate feedback for this puzzle.
+        doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
+
+        # Once we have a URL for the spreadsheet, go back and fill it in.
+        try:
+            self.google.set_doc_url(puzzle_name, doc_url)
+        except google_client.UrlConflictError as e:
+            log.exception('Doc URL was set before we got to it')
+            doc_url = e.found_url
+        self.slack.set_topic(channel_id, puzzle_url, doc_url)
 
     def _solved_puzzle(self, puzzle_name: str, solution: str, response_url: Optional[str]) -> None:
         _ephemeral_ack(f'Marking *{puzzle_name}* correct...', response_url)

@@ -80,18 +80,20 @@ class Slack:
         self.log_and_send('Creating /correct dialog', 'dialog.open', trigger_id=trigger_id,
                           dialog=dialog)
 
-    def create_channel(
-            self, puzzle_url: str, doc_url: str, prefix: Optional[str] = None) -> Tuple[str, str]:
+    def create_channel(self, puzzle_url: str, prefix: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]
         name = f'{prefix}_{puzzle_slug}' if prefix else puzzle_slug
         response = self.log_and_send('Creating channel', 'channels.create', name=name)
         assert response['ok']
         name = response['channel']['name']
         id = response['channel']['id']
-
-        topic = f'{puzzle_url} | {doc_url}'
-        self.log_and_send('Setting topic', 'channels.setTopic', channel=id, topic=topic)
+        self.log_and_send('Setting topic (URL only)', 'channels.setTopic', channel=id,
+                          topic=puzzle_url)
         return name, id
+
+    def set_topic(self, channel_id: str, puzzle_url: str, doc_url: str) -> None:
+        topic = f'{puzzle_url} | {doc_url}'
+        self.log_and_send('Setting topic', 'channels.setTopic', channel=channel_id, topic=topic)
 
     def announce_unlock(self, round_name: Optional[str], puzzle_name: str, puzzle_url: str,
                         channel_name: str, channel_id: str, round_color: str) -> None:

@@ -153,7 +153,7 @@ class Google:
         return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str, puzzle_url: str,
-                doc_url: str, channel: str) -> str:
+                channel: str) -> str:
         assert priority in {'-', 'L', 'M', 'H'}
         assert not channel.startswith('#')
 
@@ -195,7 +195,7 @@ class Google:
         }]
         # ... then update the values.
         slack_link = channel_to_link(channel)
-        cell_values = [round_name, puzzle_name, priority, puzzle_url, doc_url, slack_link,
+        cell_values = [round_name, puzzle_name, priority, puzzle_url, '🤖 One sec...', slack_link,
                        'Not started']
         requests.append({
             'updateCells': {
@@ -213,6 +213,30 @@ class Google:
         self.client.log_and_send('Adding row to tracker', batch_request)
 
         return round_color
+
+    def set_doc_url(self, puzzle_name: str, doc_url: str) -> None:
+        lookup = self.lookup(puzzle_name)
+        if lookup is None:
+            raise KeyError(f'Puzzle "{puzzle_name}" not found.')
+        row_index, doc_url_was, _ = lookup
+        if 'http' in doc_url_was:
+            raise UrlConflictError(found_url=doc_url_was, discarded_url=doc_url)
+
+        requests = [{
+            'updateCells': {
+                'rows': [row_data([doc_url])],
+                'fields': 'userEnteredValue',
+                'start': {
+                    'sheetId': self.puzzle_list_sheet_id,
+                    'rowIndex': row_index,
+                    'columnIndex': 4
+                }
+            }
+        }]
+        batch_request = self.sheets.batchUpdate(
+            spreadsheetId=self.puzzle_list_spreadsheet_id,
+            body={'requests': requests})
+        self.client.log_and_send('Updating tracker row', batch_request)
 
     def exists(self, puzzle_name: str) -> bool:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
@@ -319,6 +343,13 @@ class Google:
         batch_request = self.sheets.batchUpdate(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                                 body={'requests': requests})
         self.client.log_and_send('Updating tracker row', batch_request)
+
+
+class UrlConflictError(BaseException):
+    def __init__(self, found_url: str, discarded_url: str):
+        super().__init__(f'Found "{found_url}", not replacing with "{discarded_url}"')
+        self.found_url = found_url
+        self.discarded_url = discarded_url
 
 
 def last_index(l: List[T], value: T) -> int:
