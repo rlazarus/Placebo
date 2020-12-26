@@ -17,17 +17,15 @@ def unlock() -> flask.Response:
     log.info(text)
     if not text:
         rounds = placebo_app.google.all_rounds()
-        placebo_app.slack.unlock_dialog(flask.request.form['trigger_id'],
-                                        rounds, placebo_app.last_round)
+        placebo_app.slack.unlock_dialog(flask.request.form['trigger_id'], rounds,
+                                        placebo_app.last_round)
         return flask.make_response("", 200)
 
     try:
-        puzzle_name, puzzle_url, round_name = split_unlock(
-            flask.request.form['text'])
+        puzzle_name, puzzle_url, round_name = split_unlock(flask.request.form['text'])
     except ValueError:
         return ephemeral(
-            'Try it like this: '
-            '`/unlock Puzzle Name https://example.com/puzzle Round Name`')
+            'Try it like this: `/unlock Puzzle Name https://example.com/puzzle Round Name`')
     placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url)
     return ephemeral(f'Adding {puzzle_name}...')
 
@@ -42,8 +40,7 @@ def correct() -> flask.Response:
     try:
         puzzle_name, solution = split_correct(text)
     except ValueError:
-        return ephemeral(
-            'Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
+        return ephemeral('Try it like this: `/correct Puzzle Name PUZZLE SOLUTION`')
     placebo_app.solved_puzzle(puzzle_name, solution)
     return ephemeral(f'Marking {puzzle_name} solved...')
 
@@ -52,8 +49,7 @@ def correct() -> flask.Response:
 def newround() -> flask.Response:
     words = flask.request.form['text'].split()
     if len(words) < 2 or not is_url(words[-1]):
-        return ephemeral(
-            'Try it like this: /newround Round Name https://example.com/round')
+        return ephemeral('Try it like this: /newround Round Name https://example.com/round')
     name = ' '.join(words[:-1])
     url = words[-1]
     placebo_app.new_round(name, url)
@@ -68,8 +64,7 @@ def interact() -> flask.Response:
         puzzle_name = data['submission']['puzzle_name']
         puzzle_url = data['submission']['puzzle_url']
         response_url = data['response_url']
-        placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url,
-                               response_url)
+        placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url, response_url)
         return flask.make_response("", 200)
     elif data['callback_id'] == 'correct':
         puzzle_name = data['submission']['puzzle_name']
