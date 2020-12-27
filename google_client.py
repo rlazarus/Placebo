@@ -48,10 +48,17 @@ class Google:
         # Here and throughout, a "spreadsheet" is the entire sharable unit, and a "sheet" is the
         # page (tabs at the bottom). This is kind of unfortunate but matches the names used in
         # Google Sheets and its API.
-        self.puzzle_list_spreadsheet_id = os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID']
-        self.puzzle_list_sheet_id = os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID']
-        self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID']
-        self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
+        if os.environ.get('TESTING', None) == '1':
+            self.puzzle_list_spreadsheet_id = os.environ[
+                'PLACEBO_PUZZLE_LIST_SPREADSHEET_ID_TESTING']
+            self.puzzle_list_sheet_id = os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID_TESTING']
+            self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID_TESTING']
+            self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID_TESTING']
+        else:
+            self.puzzle_list_spreadsheet_id = os.environ['PLACEBO_PUZZLE_LIST_SPREADSHEET_ID']
+            self.puzzle_list_sheet_id = os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID']
+            self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID']
+            self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
         self.puzzle_template_id = os.environ['PLACEBO_PUZZLE_TEMPLATE_ID']
 
     def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:

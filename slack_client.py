@@ -19,7 +19,10 @@ SUCCESS_EMOJI = ['sunglasses', 'hugging_face', 'dancer', 'muscle', 'thumbsup', '
 class Slack:
     def __init__(self):
         self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
-        self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
+        if os.environ.get('TESTING', None) == '1':
+            self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID_TESTING']
+        else:
+            self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
 
     def unlock_dialog(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
         if last_round not in rounds:
