@@ -61,15 +61,7 @@ class Placebo:
 
     def _new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
                     response_url: Optional[str]) -> None:
-        if response_url:
-            log.info('Logging ephemeral acknowledgment...')
-            response = requests.post(response_url, json={
-                'text': f'Adding *{puzzle_name}*...',
-                'response_type': 'ephemeral'
-            })
-            if response.status_code != 200:
-                log.error(f"Couldn't log ephemeral acknowledgment: {response.status_code} "
-                          f"{response.text}")
+        _ephemeral_ack(f'Adding *{puzzle_name}*...', response_url)
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
         doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
@@ -81,15 +73,7 @@ class Placebo:
         self.last_round = round_name
 
     def _solved_puzzle(self, puzzle_name: str, solution: str, response_url: Optional[str]) -> None:
-        if response_url:
-            log.info('Logging ephemeral acknowledgment...')
-            response = requests.post(response_url, json={
-                'text': f'Marking *{puzzle_name}* correct...',
-                'response_type': 'ephemeral'
-            })
-            if response.status_code != 200:
-                log.error(f"Couldn't log ephemeral acknowledgment: {response.status_code} "
-                          f"{response.text}")
+        _ephemeral_ack(f'Marking *{puzzle_name}* correct...', response_url)
         lookup = self.google.lookup(puzzle_name)
         if lookup is None:
             raise KeyError(f'Puzzle "{puzzle_name}" not found.')
@@ -99,3 +83,15 @@ class Placebo:
         self.google.mark_row_solved(row_index, solution)
         if channel_name:
             self.slack.solved(channel_name, solution)
+
+
+def _ephemeral_ack(message, response_url) -> None:
+    if not response_url:
+        return
+    log.info('Logging ephemeral acknowledgment...')
+    response = requests.post(response_url, json={
+        'text': message,
+        'response_type': 'ephemeral'
+    })
+    if response.status_code != 200:
+        log.error(f"Couldn't log ephemeral acknowledgment: {response.status_code} {response.text}")
