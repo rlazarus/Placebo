@@ -11,7 +11,7 @@ import slack_client
 logging.basicConfig(format='{asctime} {name} {levelname}: {message}', style='{')
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)  # It's real noisy.
 log = logging.getLogger('placebo')
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
 class Placebo:
@@ -23,6 +23,11 @@ class Placebo:
         # default round for the unlock dialog, to make repeated unlocks easier.
         self.last_round: Optional[str] = None
         threading.Thread(target=self._worker_thread, daemon=True).start()
+
+        auth_url = self.google.start_oauth_if_necessary()
+        if auth_url:
+            # TODO: Replace this with a Slack DM.
+            log.info('While logged in as the bot user, please visit %s', auth_url)
 
     # The public methods don't do any work -- they just enqueue a call to the corresponding private
     # method, which the worker thread picks up. That accomplishes two things:

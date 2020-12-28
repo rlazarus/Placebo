@@ -75,6 +75,12 @@ def interact() -> flask.Response:
     return flask.make_response("Unexpected callback_id {callback_id}", 400)
 
 
+@app.route('/google_oauth')
+def google_oauth() -> str:
+    placebo_app.google.finish_oauth(flask.request.url)
+    return 'Authorized!'
+
+
 def ephemeral(text: str) -> flask.Response:
     return flask.jsonify({'response_type': 'ephemeral', 'text': text})
 

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pprint
@@ -5,15 +6,16 @@ import re
 import string
 from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
-import httplib2
 import psycopg2
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
 from googleapiclient import discovery, http
-from oauth2client import client, tools
 
 log = logging.getLogger('placebo.google_client')
 
 # Full drive access for dev.
 SCOPE = 'https://www.googleapis.com/auth/drive'
+USER = 'controlgroup.mh@gmail.com'
 
 NAME_CHARACTERS = string.ascii_lowercase + string.digits + '_'
 
@@ -31,19 +33,12 @@ Response = Dict[str, Union[str, int, 'Response', List['Response']]]
 
 class Google:
     def __init__(self):
-        store = PostgresStorage()
-        creds = store.get()
-        if not creds or creds.invalid:
-            flow = client.OAuth2WebServerFlow(
-                client_id=os.environ['PLACEBO_GOOGLE_CLIENT_ID'],
-                client_secret=os.environ['PLACEBO_GOOGLE_CLIENT_SECRET'],
-                scope=SCOPE,
-                auth_uri='https://accounts.google.com/o/oauth2/auth',
-                token_uri='https://www.googleapis.com/oauth2/v3/token')
-            creds = tools.run_flow(flow, store)
-        http = creds.authorize(httplib2.Http(cache='.cache'))
-        self.sheets = discovery.build('sheets', 'v4', http=http).spreadsheets()
-        self.files = discovery.build('drive', 'v3', http=http).files()
+        self.flow = Flow.from_client_config(
+            json.loads(os.environ['PLACEBO_GOOGLE_CLIENT_SECRETS']),
+            scopes=[SCOPE], redirect_uri='https://control-group.herokuapp.com/google_oauth')
+        self.sheets = None
+        self.files = None
+        self.conn = psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
 
         # Here and throughout, a "spreadsheet" is the entire sharable unit, and a "sheet" is the
         # page (tabs at the bottom). This is kind of unfortunate but matches the names used in
@@ -60,6 +55,45 @@ class Google:
             self.puzzles_folder_id = os.environ['PLACEBO_PUZZLES_FOLDER_ID']
             self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
         self.puzzle_template_id = os.environ['PLACEBO_PUZZLE_TEMPLATE_ID']
+
+    def start_oauth_if_necessary(self) -> Optional[str]:
+        creds = self.load_credentials()
+        if creds and creds.valid:
+            log.info('Google OAuth creds already present.')
+            return None
+        log.info('Starting the Google OAuth flow...')
+        authorization_url, _ = self.flow.authorization_url(
+            access_type='offline', include_granted_scopes='true', login_hint=USER)
+        return authorization_url
+
+    def finish_oauth(self, callback_url: str) -> None:
+        self.flow.fetch_token(authorization_response=callback_url)
+        credentials = self.flow.credentials
+        self.save_credentials(credentials)
+        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
+        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
+
+    def load_credentials(self) -> Optional[Credentials]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT value FROM credentials WHERE name = 'google_credentials';")
+        row = cursor.fetchone()
+        if not row:
+            return None
+        creds_json = row[0]
+        credentials = Credentials(**json.loads(creds_json))
+        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
+        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
+        return credentials
+
+    def save_credentials(self, credentials: Credentials) -> None:
+        creds_json = json.dumps(
+            {name: getattr(credentials, name) for name in
+             ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret', 'scopes']})
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO credentials (name, value) VALUES ('google_credentials', %s) "
+            "ON CONFLICT (name) DO UPDATE SET value = %s;", (creds_json, creds_json))
+        self.conn.commit()
 
     def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:
         request = self.files.copy(fileId=self.puzzle_template_id, body={
@@ -285,27 +319,3 @@ def log_and_send(desc: str, request: http.HttpRequest) -> Response:
     response = request.execute()
     log.debug(pprint.pformat(response))
     return response
-
-
-class PostgresStorage(client.Storage):
-    def __init__(self, lock=None):
-        super().__init__(lock)
-        self.conn = psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
-
-    def locked_get(self) -> client.Credentials:
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT value FROM credentials WHERE name = 'google_token';")
-        assert cursor.rowcount == 1
-        [(creds_json,)] = cursor.fetchall()
-        return client.GoogleCredentials.from_json(creds_json)
-
-    def locked_put(self, credentials: client.Credentials) -> None:
-        cursor = self.conn.cursor()
-        json = credentials.to_json()
-        cursor.execute("INSERT INTO credentials (name, value) VALUES ('google_token', %s) "
-                       "ON CONFLICT (name) DO UPDATE SET value = %s "
-                       "WHERE credentials.name = 'google_token';", (json, json))
-        self.conn.commit()
-
-    def locked_delete(self):
-        raise NotImplementedError
