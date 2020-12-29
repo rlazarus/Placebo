@@ -4,9 +4,10 @@ import os
 import pprint
 import re
 import string
-from typing import Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union
 
 import psycopg2
+from psycopg2 import extensions
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient import discovery, http
@@ -27,17 +28,78 @@ FILE_ID_PATTERN = re.compile('/d/([a-zA-Z0-9-_]+)')
 
 T = TypeVar('T')
 
-# This is an incomplete list of value types -- others are possible but these are all we've used.
-Response = Dict[str, Union[str, int, 'Response', List['Response']]]
+# This is a little disappointing, but we only have two other options: a recursive definition, like
+#   Response = Dict[str, Union[str, int, Response, List[Response]]]
+# which isn't yet supported by mypy and generates spurious type errors, or a TypedDict, which would
+# have to be spelled out exhaustively and isn't worth the bulk.
+Response = Dict[str, Any]
 
 
-class Google:
+class LoggedOutClient:
     def __init__(self):
         self.flow = Flow.from_client_config(
             json.loads(os.environ['PLACEBO_GOOGLE_CLIENT_SECRETS']),
             scopes=[SCOPE], redirect_uri='https://control-group.herokuapp.com/google_oauth')
-        self.sheets = None
-        self.files = None
+
+    @property
+    def sheets(self):
+        raise TypeError('Not logged in.')
+
+    @property
+    def files(self):
+        raise TypeError('Not logged in.')
+
+    def save_credentials(self) -> None:
+        raise TypeError('Not logged in.')
+
+    def log_and_send(self, desc: str, request: http.HttpRequest) -> Response:
+        raise TypeError('Not logged in.')
+
+
+class LoggedInClient:
+    def __init__(self, credentials: Credentials, conn: extensions.connection):
+        self.credentials = credentials
+        self.conn = conn
+        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
+        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
+
+    @classmethod
+    def from_loading_credentials(cls, conn: extensions.connection) -> Optional['LoggedInClient']:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM credentials WHERE name = 'google_credentials';")
+        row = cursor.fetchone()
+        if not row:
+            return None
+        creds_json = row[0]
+        credentials = Credentials(**json.loads(creds_json))
+        return LoggedInClient(credentials, conn)
+
+    def save_credentials(self) -> None:
+        creds_json = json.dumps(
+            {name: getattr(self.credentials, name) for name in
+             ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret', 'scopes']})
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO credentials (name, value) VALUES ('google_credentials', %s) "
+            "ON CONFLICT (name) DO UPDATE SET value = %s;", (creds_json, creds_json))
+        self.conn.commit()
+
+    def log_and_send(self, desc: str, request: http.HttpRequest) -> Response:
+        log.info(desc)
+        log.debug(pprint.pformat(request))
+        response = request.execute()
+        log.debug(pprint.pformat(response))
+        self.save_credentials()  # They may have been refreshed in the process.
+        return response
+
+    @property
+    def flow(self) -> Flow:
+        raise TypeError('Already logged in.')
+
+
+class Google:
+    def __init__(self):
+        self.client: Union[LoggedInClient, LoggedOutClient] = LoggedOutClient()
         self.conn = psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
 
         # Here and throughout, a "spreadsheet" is the entire sharable unit, and a "sheet" is the
@@ -56,51 +118,36 @@ class Google:
             self.solved_folder_id = os.environ['PLACEBO_SOLVED_FOLDER_ID']
         self.puzzle_template_id = os.environ['PLACEBO_PUZZLE_TEMPLATE_ID']
 
+    @property
+    def sheets(self):
+        return self.client.sheets
+
+    @property
+    def files(self):
+        return self.client.files
+
     def start_oauth_if_necessary(self) -> Optional[str]:
-        creds = self.load_credentials()
-        if creds and creds.valid:
+        maybe_client = LoggedInClient.from_loading_credentials(self.conn)
+        if maybe_client:
+            self.client = maybe_client
             log.info('Google OAuth creds already present.')
             return None
         log.info('Starting the Google OAuth flow...')
-        authorization_url, _ = self.flow.authorization_url(
+        authorization_url, _ = self.client.flow.authorization_url(
             access_type='offline', include_granted_scopes='true', login_hint=USER)
         return authorization_url
 
     def finish_oauth(self, callback_url: str) -> None:
-        self.flow.fetch_token(authorization_response=callback_url)
-        credentials = self.flow.credentials
-        self.save_credentials(credentials)
-        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
-        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
-
-    def load_credentials(self) -> Optional[Credentials]:
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT value FROM credentials WHERE name = 'google_credentials';")
-        row = cursor.fetchone()
-        if not row:
-            return None
-        creds_json = row[0]
-        credentials = Credentials(**json.loads(creds_json))
-        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
-        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
-        return credentials
-
-    def save_credentials(self, credentials: Credentials) -> None:
-        creds_json = json.dumps(
-            {name: getattr(credentials, name) for name in
-             ['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret', 'scopes']})
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "INSERT INTO credentials (name, value) VALUES ('google_credentials', %s) "
-            "ON CONFLICT (name) DO UPDATE SET value = %s;", (creds_json, creds_json))
-        self.conn.commit()
+        self.client.flow.fetch_token(authorization_response=callback_url)
+        self.client = LoggedInClient(self.client.flow.credentials, self.conn)
+        self.client.save_credentials()
 
     def create_puzzle_spreadsheet(self, puzzle_name: str) -> str:
-        request = self.files.copy(fileId=self.puzzle_template_id, body={
+        request = self.client.files.copy(fileId=self.puzzle_template_id, body={
             'name': puzzle_name,
             'parents': [self.puzzles_folder_id],
         })
-        response = log_and_send('Creating spreadsheet', request)
+        response = self.client.log_and_send('Creating spreadsheet', request)
         doc_id = response['id']
         url = f'https://docs.google.com/spreadsheets/d/{doc_id}/edit'
         return url
@@ -113,7 +160,7 @@ class Google:
         # Find the last row that matches this round; we'll insert below it.
         request = self.sheets.get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                   ranges='Puzzle List!A:A', includeGridData=True)
-        response = log_and_send('Looking up the Round column', request)
+        response = self.client.log_and_send('Looking up the Round column', request)
         rows = response['sheets'][0]['data'][0]['rowData']
         round_names = [(row['values'][0].get('formattedValue', '') if 'values' in row else '')
                        for row in rows]
@@ -163,14 +210,14 @@ class Google:
         })
         batch_request = self.sheets.batchUpdate(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                                 body={'requests': requests})
-        log_and_send('Adding row to tracker', batch_request)
+        self.client.log_and_send('Adding row to tracker', batch_request)
 
         return round_color
 
     def exists(self, puzzle_name: str) -> bool:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!B:B', majorDimension='COLUMNS')
-        response = log_and_send('Checking tracking sheet for puzzle', request)
+        response = self.client.log_and_send('Checking tracking sheet for puzzle', request)
         puzzle_name = canonicalize(puzzle_name)
         column = response['values'][0]
         for cell in column:
@@ -181,7 +228,7 @@ class Google:
     def lookup(self, puzzle_name: str) -> Optional[Tuple[int, str, Optional[str]]]:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!A:G')
-        response = log_and_send('Fetching tracking sheet', request)
+        response = self.client.log_and_send('Fetching tracking sheet', request)
         puzzle_name = canonicalize(puzzle_name)
         matching_rows = []
         for row_index, row in enumerate(response['values']):
@@ -197,7 +244,7 @@ class Google:
     def all_rounds(self) -> List[str]:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!A3:A', majorDimension='COLUMNS')
-        response = log_and_send('Fetching round names', request)
+        response = self.client.log_and_send('Fetching round names', request)
         column = response['values'][0]
         result = []
         suppress = {'', 'Hunt', 'Meta'}
@@ -209,7 +256,7 @@ class Google:
     def unsolved_puzzles(self) -> List[str]:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!B3:G')
-        response = log_and_send('Fetching puzzle names', request)
+        response = self.client.log_and_send('Fetching puzzle names', request)
         result = []
         for row in response['values']:
             if len(row) < 6:
@@ -228,7 +275,7 @@ class Google:
 
         # Get the current title.
         request = self.files.get(fileId=file_id)
-        response = log_and_send('Getting puzzle doc title', request)
+        response = self.client.log_and_send('Getting puzzle doc title', request)
         name = response['name']
         if name.startswith('[SOLVED]'):
             # We must have done this already. No need to do it twice.
@@ -237,7 +284,7 @@ class Google:
         # Update the title.
         name = f'[SOLVED] {name}'
         request = self.files.update(fileId=file_id, body={'name': name})
-        log_and_send('Updating puzzle doc title', request)
+        self.client.log_and_send('Updating puzzle doc title', request)
 
         # Move it to the Solved folder. (Why do we mark it two ways? Changing the title gets the
         # attention of solvers looking at the doc who may not realize the puzzle is solved. Moving
@@ -245,7 +292,7 @@ class Google:
         # "[SOLVED]" prefixes sort to the top.)
         request = self.files.update(fileId=file_id, addParents=self.solved_folder_id,
                                     removeParents=self.puzzles_folder_id)
-        log_and_send('Moving puzzle doc to Solved folder', request)
+        self.client.log_and_send('Moving puzzle doc to Solved folder', request)
 
     def mark_row_solved(self, row_index: int, solution: str) -> None:
         requests = [{
@@ -271,7 +318,7 @@ class Google:
         }]
         batch_request = self.sheets.batchUpdate(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                                 body={'requests': requests})
-        log_and_send('Updating tracker row', batch_request)
+        self.client.log_and_send('Updating tracker row', batch_request)
 
 
 def last_index(l: List[T], value: T) -> int:
@@ -311,11 +358,3 @@ def link_to_channel(link: str) -> Optional[str]:
 
 def hex_color(rgb: Dict[str, float]) -> str:
     return '#' + ''.join(format(int(rgb.get(i, 0) * 255), '02x') for i in ['red', 'green', 'blue'])
-
-
-def log_and_send(desc: str, request: http.HttpRequest) -> Response:
-    log.info(desc)
-    log.debug(pprint.pformat(request))
-    response = request.execute()
-    log.debug(pprint.pformat(response))
-    return response

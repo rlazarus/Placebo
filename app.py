@@ -77,6 +77,10 @@ def interact() -> flask.Response:
 
 @app.route('/google_oauth')
 def google_oauth() -> str:
+    if 'error' in flask.request.args:
+        error = flask.request.args['error']
+        log.error('Google OAuth error: %s', error)
+        return f'Google OAuth error: {error}'
     placebo_app.google.finish_oauth(flask.request.url)
     return 'Authorized!'
 
