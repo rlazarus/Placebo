@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import threading
 from typing import Callable, Optional
@@ -11,7 +12,7 @@ import slack_client
 logging.basicConfig(format='{asctime} {name} {levelname}: {message}', style='{')
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)  # It's real noisy.
 log = logging.getLogger('placebo')
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.DEBUG if os.getenv('PLACEBO_DEBUG_LOGS') == '1' else logging.INFO)
 
 
 class Placebo:
