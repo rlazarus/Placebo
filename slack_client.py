@@ -3,7 +3,7 @@ import logging
 import os
 import pprint
 import random
-from typing import Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Union
 
 from slackclient import SlackClient
 
@@ -108,7 +108,7 @@ class Slack:
             'text': '\n'.join(lines),
         }
         self.log_and_send('Announcing unlock', 'chat.postMessage', channel=self.unlocks_channel_id,
-                          as_user=False, username='Control Group', icon_emoji=':robot:',
+                          as_user=False, username='Control Group', icon_emoji=':robot_face:',
                           attachments=[attach])
 
     def announce_round(self, round_name, round_url):
@@ -121,7 +121,7 @@ class Slack:
         }
         self.log_and_send('Announcing round unlock', 'chat.postMessage',
                           channel=self.unlocks_channel_id, as_user=False, username='Control Group',
-                          icon_emoji=':robot:', attachments=[attach])
+                          icon_emoji=':robot_face:', attachments=[attach])
 
     def solved(self, channel_name: str, answer: str) -> None:
         channel_id = self.get_channel_id_by_name(channel_name)
@@ -129,23 +129,52 @@ class Slack:
 
         num_emoji = random.choice([3, 4, 4, 5, 5, 6])
         emoji = ''.join(f':{i}:' for i in random.sample(SUCCESS_EMOJI, num_emoji))
-
-        text = f'This puzzle is solved! "{answer}" is correct. Congratulations! {emoji}\n\n'
+        text = f'This puzzle is solved! "{answer}" is correct. Congratulations! {emoji}'
         if archive:
-            text += ('This channel will be archived, but feel free to un-archive it if you want '
-                     'to keep talking.')
+            text += ('\n\nThis channel will be archived, but feel free to un-archive it if you '
+                     'want to keep talking.')
+            blocks = [{
+                'type': 'section',
+                'text': plain_text(text, emoji=True)
+            }]
         else:
-            text += ('Please archive this channel if you\'re done with it, by clicking the gear '
-                     'menu and then "Additional options."')
-        attach = {'text': text, 'color': 'good'}
+            blocks = [
+                {
+                    'type': 'section',
+                    'text': plain_text(text, emoji=True)
+                },
+                {
+                    'type': 'section',
+                    'text': plain_text("If you're done using this channel, would you like to clean "
+                                       "it up?"),
+                    'accessory': {
+                        'type': 'button',
+                        'text': plain_text(f'Archive #{channel_name}'),
+                        'value': channel_id,
+                        'action_id': 'archive',
+                        'confirm': {
+                            'title': plain_text(f'Archive #{channel_name}?'),
+                            'text': plain_text(
+                                "You won't be able to send messages to it anymore, but you'll "
+                                "still be able to read it, and you can always un-archive it if you "
+                                "like."),
+                            'confirm': plain_text('Yes, archive it'),
+                            'deny': plain_text('No, leave it open')
+                        }
+                    }
+                }
+            ]
         self.log_and_send('Posting to puzzle channel', 'chat.postMessage', channel=channel_id,
-                          as_user=False, icon_emoji='', attachments=[attach])
+                          username='Control Group', icon_emoji=':robot_face:', text=text,
+                          blocks=blocks)
 
         if archive:
-            self.log_and_send('Archiving puzzle channel', 'conversations.archive',
-                              channel=channel_id)
+            self.archive(channel_id)
         else:
             log.info('Not archiving puzzle channel.')
+
+    def archive(self, channel_id):
+        self.log_and_send('Archiving puzzle channel', 'conversations.archive', channel=channel_id)
 
     def get_channel_id_by_name(self, channel_name: str) -> str:
         cursor = None
@@ -180,3 +209,11 @@ class Slack:
         log.log(level, pprint.pformat(response))
         assert response['ok']
         return response
+
+
+def plain_text(text: str, emoji: bool = False) -> Dict[str, Union[str, bool]]:
+    return {
+        'type': 'plain_text',
+        'text': text,
+        'emoji': emoji
+    }

@@ -1,8 +1,10 @@
 import json
 import logging
+import pprint
 from typing import Tuple
 
 import flask
+from werkzeug.exceptions import BadRequest
 
 import placebo
 
@@ -59,20 +61,38 @@ def newround() -> flask.Response:
 @app.route('/interact', methods=['POST'])
 def interact() -> flask.Response:
     data = json.loads(flask.request.form['payload'])
-    if data['callback_id'] == 'unlock':
-        round_name = data['submission']['round_name']
-        puzzle_name = data['submission']['puzzle_name']
-        puzzle_url = data['submission']['puzzle_url']
-        response_url = data['response_url']
-        placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url, response_url)
-        return flask.make_response("", 200)
-    elif data['callback_id'] == 'correct':
-        puzzle_name = data['submission']['puzzle_name']
-        answer = data['submission']['answer']
-        response_url = data['response_url']
-        placebo_app.solved_puzzle(puzzle_name, answer, response_url)
-        return flask.make_response("", 200)
-    return flask.make_response("Unexpected callback_id {callback_id}", 400)
+    log.debug(pprint.pformat(data))
+    try:
+        type = data['type']
+        if type == 'dialog_submission':
+            callback_id = data['callback_id']
+            if callback_id == 'unlock':
+                round_name = data['submission']['round_name']
+                puzzle_name = data['submission']['puzzle_name']
+                puzzle_url = data['submission']['puzzle_url']
+                response_url = data['response_url']
+                placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url, response_url)
+                return flask.make_response("", 200)
+            elif callback_id == 'correct':
+                puzzle_name = data['submission']['puzzle_name']
+                answer = data['submission']['answer']
+                response_url = data['response_url']
+                placebo_app.solved_puzzle(puzzle_name, answer, response_url)
+                return flask.make_response("", 200)
+            raise BadRequest(f'Unexpected callback_id {callback_id}')
+        elif type == 'block_actions':
+            actions = data['actions']
+            if len(actions) != 1:
+                raise BadRequest(f'Got {len(actions)} actions, expected 1')
+            action_id = actions[0]['action_id']
+            if action_id == 'archive':
+                placebo_app.slack.archive(actions[0]['value'])
+            else:
+                raise BadRequest(f'Unexpected action_id {action_id}')
+        raise BadRequest(f'Unexpected type {type}')
+    except BadRequest:
+        logging.exception(pprint.pformat(data))
+        raise
 
 
 @app.route('/google_oauth')
