@@ -16,7 +16,6 @@ placebo_app = placebo.Placebo()
 @app.route('/unlock', methods=['POST'])
 def unlock() -> flask.Response:
     text = flask.request.form['text']
-    log.info(text)
     if not text:
         rounds = placebo_app.google.all_rounds()
         placebo_app.slack.unlock_dialog(flask.request.form['trigger_id'], rounds,

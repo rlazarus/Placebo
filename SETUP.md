@@ -5,6 +5,7 @@ Full setup instructions coming soon.
 Variable | Contents
 --- | ---
 DATABASE_URL | Heroku-provided `postgres://` URL.
+PLACEBO_ADMIN_SLACK_USER | Slack user ID for the person running the app. This is used to send DMs about any operational problems. To find your user ID, open "people & user groups" in the Slack UI, click on yourself, open "more," and choose "copy member ID." It's alphanumeric and starts with a U. 
 PLACEBO_DEBUG_LOGS | If set to 1, the minimum logging level is set to "debug," which includes e.g. request and response payloads on API calls. If missing or set to any other value, the logging level is "info."
 PLACEBO_GOOGLE_CLIENT_SECRETS | OAuth client secret for Google APIs, in JSON format. Download `client_secret.json` from the [Google API console], then paste the contents into this variable.
 PLACEBO_PUZZLE_LIST_SPREADSHEET_ID<sup>†</sup> | Spreadsheet ID for the puzzle list. Take this from the URL: it comes after `/spreadsheets/d/` and before `/edit`.

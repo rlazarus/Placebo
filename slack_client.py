@@ -23,6 +23,11 @@ class Slack:
             self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID_TESTING']
         else:
             self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
+        self.admin_user = os.environ['PLACEBO_ADMIN_SLACK_USER']
+
+    def dm_admin(self, message: str):
+        self.log_and_send('DMing admin user', 'chat.postMessage', channel=self.admin_user,
+                          text=message)
 
     def unlock_dialog(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
         if last_round not in rounds:

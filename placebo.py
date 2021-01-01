@@ -2,6 +2,7 @@ import logging
 import os
 import queue
 import threading
+import traceback
 from typing import Callable, Optional
 
 import requests
@@ -27,8 +28,7 @@ class Placebo:
 
         auth_url = self.google.start_oauth_if_necessary()
         if auth_url:
-            # TODO: Replace this with a Slack DM.
-            log.info('While logged in as the bot user, please visit %s', auth_url)
+            self.slack.dm_admin(f'While logged in as the bot user, please visit {auth_url}')
 
     # The public methods don't do any work -- they just enqueue a call to the corresponding private
     # method, which the worker thread picks up. That accomplishes two things:
@@ -53,9 +53,13 @@ class Placebo:
             func = self.queue.get()
             try:
                 func()
-            except BaseException as e:
+            except BaseException:
                 # TODO: Reply to the original command if we can.
-                log.exception(e)
+                log.exception('Error in worker thread.')
+                try:
+                    self.slack.dm_admin(f'Error in worker thread:\n\n```{traceback.format_exc()}```')
+                except BaseException:
+                    log.exception('Also, failed to send a Slack DM about it.')
 
     def _new_round(self, round_name: str, round_url: str) -> None:
         meta_name = round_name + " Meta"
