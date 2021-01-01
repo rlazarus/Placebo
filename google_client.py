@@ -105,7 +105,7 @@ class Google:
         # Here and throughout, a "spreadsheet" is the entire sharable unit, and a "sheet" is the
         # page (tabs at the bottom). This is kind of unfortunate but matches the names used in
         # Google Sheets and its API.
-        if os.environ.get('TESTING', None) == '1':
+        if os.environ.get('PLACEBO_TESTING') == '1':
             self.puzzle_list_spreadsheet_id = os.environ[
                 'PLACEBO_PUZZLE_LIST_SPREADSHEET_ID_TESTING']
             self.puzzle_list_sheet_id = os.environ['PLACEBO_PUZZLE_LIST_SHEET_ID_TESTING']
