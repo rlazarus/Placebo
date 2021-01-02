@@ -45,8 +45,8 @@ class Placebo:
                                                 meta=False))
 
     def solved_puzzle(
-            self, puzzle_name: str, solution: str, response_url: Optional[str] = None) -> None:
-        self.queue.put(lambda: self._solved_puzzle(puzzle_name, solution, response_url))
+            self, puzzle_name: str, answer: str, response_url: Optional[str] = None) -> None:
+        self.queue.put(lambda: self._solved_puzzle(puzzle_name, answer, response_url))
 
     def _worker_thread(self) -> None:
         while True:
@@ -97,7 +97,7 @@ class Placebo:
             doc_url = e.found_url
         self.slack.set_topic(channel_id, puzzle_url, doc_url)
 
-    def _solved_puzzle(self, puzzle_name: str, solution: str, response_url: Optional[str]) -> None:
+    def _solved_puzzle(self, puzzle_name: str, answer: str, response_url: Optional[str]) -> None:
         _ephemeral_ack(f'Marking *{puzzle_name}* correct...', response_url)
         lookup = self.google.lookup(puzzle_name)
         if lookup is None:
@@ -105,9 +105,9 @@ class Placebo:
         row_index, doc_url, channel_name = lookup
         if doc_url:
             self.google.mark_doc_solved(doc_url)
-        self.google.mark_row_solved(row_index, solution)
+        self.google.mark_row_solved(row_index, answer)
         if channel_name:
-            self.slack.solved(channel_name, solution)
+            self.slack.solved(channel_name, answer)
 
 
 def _ephemeral_ack(message, response_url) -> None:

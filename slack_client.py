@@ -29,7 +29,7 @@ class Slack:
         self.log_and_send('DMing admin user', 'chat.postMessage', channel=self.admin_user,
                           text=message)
 
-    def newround_dialog(self, trigger_id: str) -> None:
+    def newround_modal(self, trigger_id: str) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'newround',
@@ -59,61 +59,83 @@ class Slack:
         }
         self.log_and_send('Opening /newround modal', 'views.open', trigger_id=trigger_id, view=view)
 
-    def unlock_dialog(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
+    def unlock_modal(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
         if last_round not in rounds:
             last_round = None
-        dialog = {
-            'title': 'Unlock new puzzle',
+        view = {
+            'type': 'modal',
             'callback_id': 'unlock',
-            'elements': [
+            'title': plain_text('Unlock new puzzle'),
+            'blocks': [
                 {
-                    'label': 'Name',
-                    'name': 'puzzle_name',
-                    'type': 'text',
-                    'placeholder': 'Lorem Ipsum',
+                    'type': 'input',
+                    'label': plain_text('Name'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'puzzle_name',
+                        'placeholder': plain_text('Lorem Ipsum'),
+                    },
                 },
                 {
-                    'label': 'URL',
-                    'name': 'puzzle_url',
-                    'type': 'text',
-                    'subtype': 'url',
-                    'placeholder': 'https://example.com/puzzle/lorem_ipsum',
+                    'type': 'input',
+                    'label': plain_text('URL'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'puzzle_url',
+                        'placeholder': plain_text('https://example.com/puzzle/lorem_ipsum'),
+                    },
                 },
                 {
-                    'label': 'Round',
-                    'name': 'round_name',
-                    'type': 'select',
-                    'value': last_round,
-                    'options': [{'label': round, 'value': round} for round in rounds],
-                    'placeholder': 'Choose a round',
+                    'type': 'input',
+                    'label': plain_text('Round'),
+                    'element': {
+                        'type': 'static_select',
+                        'action_id': 'round_name',
+                        'options': [{'text': plain_text(r), 'value': r} for r in rounds],
+                        'placeholder': plain_text('Choose a round'),
+                    }
                 }
             ],
+            'close': plain_text('Cancel'),
+            'submit': plain_text('Submit'),
         }
-        self.log_and_send('Creating /unlock dialog', 'dialog.open', trigger_id=trigger_id,
-                          dialog=dialog)
+        if last_round and last_round in rounds:
+            view['blocks'][2]['element']['initial_option'] = {
+                'text': plain_text(last_round),
+                'value': last_round
+            }
+        self.log_and_send('Opening /unlock modal', 'views.open', trigger_id=trigger_id, view=view)
 
-    def correct_dialog(self, trigger_id: str, puzzle_names: List[str]) -> None:
-        dialog = {
-            'title': 'Mark an answer correct',
+    def correct_modal(self, trigger_id: str, puzzle_names: List[str]) -> None:
+        view = {
+            'type': 'modal',
             'callback_id': 'correct',
-            'elements': [
+            'title': plain_text('Mark an answer correct'),
+            'blocks': [
                 {
-                    'label': 'Puzzle',
-                    'name': 'puzzle_name',
-                    'type': 'select',
-                    'options': [{'label': p, 'value': p} for p in puzzle_names],
-                    'placeholder': 'Choose a puzzle',
+                    'type': 'input',
+                    'label': plain_text('Puzzle'),
+                    'element': {
+                        'type': 'static_select',
+                        'action_id': 'puzzle_name',
+                        'options': [{'text': plain_text(p), 'value': p} for p in puzzle_names],
+                        'placeholder': plain_text('Choose a puzzle')
+                    }
                 },
                 {
-                    'label': 'Answer',
-                    'name': 'answer',
-                    'type': 'text',
-                    'placeholder': 'LOREM IPSUM',
+                    'type': 'input',
+                    'label': plain_text('Answer'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'answer',
+                        'placeholder': plain_text('LOREM IPSUM'),
+                    },
                 }
-            ]
+            ],
+            'close': plain_text('Cancel'),
+            'submit': plain_text('Submit'),
         }
-        self.log_and_send('Creating /correct dialog', 'dialog.open', trigger_id=trigger_id,
-                          dialog=dialog)
+        self.log_and_send('Opening /correct modal', 'views.open', trigger_id=trigger_id, view=view)
 
     def create_channel(self, puzzle_url: str, prefix: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]

@@ -18,8 +18,8 @@ def unlock() -> flask.Response:
     text = flask.request.form['text']
     if not text:
         rounds = placebo_app.google.all_rounds()
-        placebo_app.slack.unlock_dialog(flask.request.form['trigger_id'], rounds,
-                                        placebo_app.last_round)
+        placebo_app.slack.unlock_modal(flask.request.form['trigger_id'], rounds,
+                                       placebo_app.last_round)
         return flask.make_response("", 200)
 
     try:
@@ -36,7 +36,7 @@ def correct() -> flask.Response:
     text = flask.request.form['text']
     if not text:
         puzzle_names = placebo_app.google.unsolved_puzzles()
-        placebo_app.slack.correct_dialog(flask.request.form['trigger_id'], puzzle_names)
+        placebo_app.slack.correct_modal(flask.request.form['trigger_id'], puzzle_names)
         return flask.make_response("", 200)
     try:
         puzzle_name, solution = split_correct(text)
@@ -50,7 +50,7 @@ def correct() -> flask.Response:
 def newround() -> flask.Response:
     text = flask.request.form['text']
     if not text:
-        placebo_app.slack.newround_dialog(flask.request.form['trigger_id'])
+        placebo_app.slack.newround_modal(flask.request.form['trigger_id'])
         return flask.make_response("", 200)
     words = text.split()
     if len(words) < 2 or not is_url(words[-1]):
@@ -67,28 +67,25 @@ def interact() -> flask.Response:
     log.debug(pprint.pformat(data))
     try:
         type = data['type']
-        if type == 'dialog_submission':
-            callback_id = data['callback_id']
+        if type == 'view_submission':
+            callback_id = data['view']['callback_id']
+            fields = {}
+            for block in data['view']['state']['values'].values():
+                for action_id, action in block.items():
+                    action_type = action['type']
+                    if action_type == 'plain_text_input':
+                        fields[action_id] = action['value']
+                    elif action_type == 'static_select':
+                        fields[action_id] = action['selected_option']['value']
+                    else:
+                        raise BadRequest(f'Unexpected action type {action_type}')
             if callback_id == 'unlock':
-                round_name = data['submission']['round_name']
-                puzzle_name = data['submission']['puzzle_name']
-                puzzle_url = data['submission']['puzzle_url']
-                response_url = data['response_url']
-                placebo_app.new_puzzle(round_name, puzzle_name, puzzle_url, response_url)
+                placebo_app.new_puzzle(**fields)
                 return flask.make_response("", 200)
             elif callback_id == 'correct':
-                puzzle_name = data['submission']['puzzle_name']
-                answer = data['submission']['answer']
-                response_url = data['response_url']
-                placebo_app.solved_puzzle(puzzle_name, answer, response_url)
+                placebo_app.solved_puzzle(**fields)
                 return flask.make_response("", 200)
-            raise BadRequest(f'Unexpected callback_id {callback_id}')
-        elif type == 'view_submission':
-            callback_id = data['view']['callback_id']
-            if callback_id == 'newround':
-                fields = {action_id: action['value']
-                          for block in data['view']['state']['values'].values()
-                          for action_id, action in block.items()}
+            elif callback_id == 'newround':
                 placebo_app.new_round(**fields)
                 return flask.make_response("", 200)
             raise BadRequest(f'Unexpected callback_id {callback_id}')
