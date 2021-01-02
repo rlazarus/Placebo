@@ -3,7 +3,7 @@ import logging
 import os
 import pprint
 import random
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from slackclient import SlackClient
 
@@ -28,6 +28,36 @@ class Slack:
     def dm_admin(self, message: str):
         self.log_and_send('DMing admin user', 'chat.postMessage', channel=self.admin_user,
                           text=message)
+
+    def newround_dialog(self, trigger_id: str) -> None:
+        view = {
+            'type': 'modal',
+            'callback_id': 'newround',
+            'title': plain_text('Unlock new round'),
+            'blocks': [
+                {
+                    'type': 'input',
+                    'label': plain_text('Name'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'round_name',
+                        'placeholder': plain_text('Lorem Ipsum'),
+                    },
+                },
+                {
+                    'type': 'input',
+                    'label': plain_text('URL'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'round_url',
+                        'placeholder': plain_text('https://example.com/round/lorem_ipsum'),
+                    },
+                }
+            ],
+            'close': plain_text('Cancel'),
+            'submit': plain_text('Submit'),
+        }
+        self.log_and_send('Opening /newround modal', 'views.open', trigger_id=trigger_id, view=view)
 
     def unlock_dialog(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
         if last_round not in rounds:

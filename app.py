@@ -48,7 +48,11 @@ def correct() -> flask.Response:
 
 @app.route('/newround', methods=['POST'])
 def newround() -> flask.Response:
-    words = flask.request.form['text'].split()
+    text = flask.request.form['text']
+    if not text:
+        placebo_app.slack.newround_dialog(flask.request.form['trigger_id'])
+        return flask.make_response("", 200)
+    words = text.split()
     if len(words) < 2 or not is_url(words[-1]):
         return ephemeral('Try it like this: /newround Round Name https://example.com/round')
     name = ' '.join(words[:-1])
@@ -79,6 +83,15 @@ def interact() -> flask.Response:
                 placebo_app.solved_puzzle(puzzle_name, answer, response_url)
                 return flask.make_response("", 200)
             raise BadRequest(f'Unexpected callback_id {callback_id}')
+        elif type == 'view_submission':
+            callback_id = data['view']['callback_id']
+            if callback_id == 'newround':
+                fields = {action_id: action['value']
+                          for block in data['view']['state']['values'].values()
+                          for action_id, action in block.items()}
+                placebo_app.new_round(**fields)
+                return flask.make_response("", 200)
+            raise BadRequest(f'Unexpected callback_id {callback_id}')
         elif type == 'block_actions':
             actions = data['actions']
             if len(actions) != 1:
@@ -86,8 +99,8 @@ def interact() -> flask.Response:
             action_id = actions[0]['action_id']
             if action_id == 'archive':
                 placebo_app.slack.archive(actions[0]['value'])
-            else:
-                raise BadRequest(f'Unexpected action_id {action_id}')
+                return flask.make_response("", 200)
+            raise BadRequest(f'Unexpected action_id {action_id}')
         raise BadRequest(f'Unexpected type {type}')
     except BadRequest:
         logging.exception(pprint.pformat(data))
