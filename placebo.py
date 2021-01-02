@@ -98,6 +98,9 @@ class Placebo:
         self.slack.set_topic(channel_id, puzzle_url, doc_url)
 
     def _solved_puzzle(self, puzzle_name: str, answer: str, response_url: Optional[str]) -> None:
+        # It'll already be in caps if it was typed as a command arg, but it might not if it came
+        # from the modal.
+        answer = answer.upper()
         _ephemeral_ack(f'Marking *{puzzle_name}* correct...', response_url)
         lookup = self.google.lookup(puzzle_name)
         if lookup is None:
