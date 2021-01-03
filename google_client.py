@@ -6,11 +6,14 @@ import re
 import string
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union
 
+import httplib2
 import psycopg2
-from psycopg2 import extensions
 from google.oauth2.credentials import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import Flow
 from googleapiclient import discovery, http
+from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
+from psycopg2 import extensions
 
 log = logging.getLogger('placebo.google_client')
 
@@ -60,8 +63,14 @@ class LoggedInClient:
     def __init__(self, credentials: Credentials, conn: extensions.connection):
         self.credentials = credentials
         self.conn = conn
-        self.sheets = discovery.build('sheets', 'v4', credentials=credentials).spreadsheets()
-        self.files = discovery.build('drive', 'v3', credentials=credentials).files()
+        # This is roughly googleapiclient.http.build_http(), but with a cache.
+        http = httplib2.Http(cache='.cache', timeout=DEFAULT_HTTP_TIMEOUT_SEC)
+        http.redirect_codes -= {308}
+        # And this is roughly what discovery.build(... credentials=credentials) does, but with our
+        # cache-enabled http.
+        auth_http = AuthorizedHttp(credentials=credentials, http=http)
+        self.sheets = discovery.build('sheets', 'v4', http=auth_http).spreadsheets()
+        self.files = discovery.build('drive', 'v3', http=auth_http).files()
 
     @classmethod
     def from_loading_credentials(cls, conn: extensions.connection) -> Optional['LoggedInClient']:
