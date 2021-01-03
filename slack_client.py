@@ -197,8 +197,7 @@ class Slack:
             'text': '\n'.join(lines),
         }
         self.log_and_send('Announcing unlock', 'chat.postMessage', channel=self.unlocks_channel_id,
-                          as_user=False, username='Control Group', icon_emoji=':robot_face:',
-                          attachments=[attach])
+                          username='Control Group', icon_emoji=':robot_face:', attachments=[attach])
 
     def announce_round(self, round_name, round_url):
         attach = {
@@ -209,7 +208,7 @@ class Slack:
             'mrkdwn_in': 'text',
         }
         self.log_and_send('Announcing round unlock', 'chat.postMessage',
-                          channel=self.unlocks_channel_id, as_user=False, username='Control Group',
+                          channel=self.unlocks_channel_id, username='Control Group',
                           icon_emoji=':robot_face:', attachments=[attach])
 
     def solved(self, channel_name: str, answer: str) -> None:
