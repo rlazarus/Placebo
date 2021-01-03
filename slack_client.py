@@ -20,16 +20,19 @@ class Slack:
     def __init__(self):
         self.client = SlackClient(os.environ['PLACEBO_SLACK_TOKEN'])
         if os.environ.get('PLACEBO_TESTING') == '1':
+            self.qm_channel_id = os.environ['PLACEBO_QM_CHANNEL_ID_TESTING']
             self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID_TESTING']
         else:
+            self.qm_channel_id = os.environ['PLACEBO_QM_CHANNEL_ID']
             self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
         self.admin_user = os.environ['PLACEBO_ADMIN_SLACK_USER']
+        self.in_progress_messages: Dict[str, str] = {}
 
     def dm_admin(self, message: str):
         self.log_and_send('DMing admin user', 'chat.postMessage', channel=self.admin_user,
                           text=message)
 
-    def newround_modal(self, trigger_id: str) -> None:
+    def newround_modal(self, trigger_id: str, user_id: str) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'newround',
@@ -56,12 +59,14 @@ class Slack:
             ],
             'close': plain_text('Cancel'),
             'submit': plain_text('Submit'),
+            'notify_on_close': True,
         }
-        self.log_and_send('Opening /newround modal', 'views.open', trigger_id=trigger_id, view=view)
+        response = self.log_and_send('Opening /newround modal', 'views.open', trigger_id=trigger_id,
+                                     view=view)
+        self.post_in_progress_message(response['view']['id'], user_id, 'is adding a round...')
 
-    def unlock_modal(self, trigger_id: str, rounds: List[str], last_round: Optional[str]) -> None:
-        if last_round not in rounds:
-            last_round = None
+    def unlock_modal(self, trigger_id: str, user_id: str, rounds: List[str],
+                     last_round: Optional[str]) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'unlock',
@@ -98,15 +103,18 @@ class Slack:
             ],
             'close': plain_text('Cancel'),
             'submit': plain_text('Submit'),
+            'notify_on_close': True,
         }
-        if last_round and last_round in rounds:
+        if last_round in rounds:
             view['blocks'][2]['element']['initial_option'] = {
                 'text': plain_text(last_round),
                 'value': last_round
             }
-        self.log_and_send('Opening /unlock modal', 'views.open', trigger_id=trigger_id, view=view)
+        response = self.log_and_send('Opening /unlock modal', 'views.open', trigger_id=trigger_id,
+                                     view=view)
+        self.post_in_progress_message(response['view']['id'], user_id, 'is adding an unlock...')
 
-    def correct_modal(self, trigger_id: str, puzzle_names: List[str]) -> None:
+    def correct_modal(self, trigger_id: str, user_id: str, puzzle_names: List[str]) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'correct',
@@ -134,8 +142,32 @@ class Slack:
             ],
             'close': plain_text('Cancel'),
             'submit': plain_text('Submit'),
+            'notify_on_close': True,
         }
-        self.log_and_send('Opening /correct modal', 'views.open', trigger_id=trigger_id, view=view)
+        response = self.log_and_send('Opening /correct modal', 'views.open', trigger_id=trigger_id,
+                                     view=view)
+        self.post_in_progress_message(response['view']['id'], user_id,
+                                      'is marking a puzzle solved...')
+
+    def post_in_progress_message(self, view_id: str, user_id: str, message: str) -> None:
+        response = self.log_and_send('Looking up username', 'users.info', user=user_id)
+        user_name = response['user']['name']
+        response = self.log_and_send(
+            'Mentioning in #qm', 'chat.postMessage', channel=self.qm_channel_id,
+            username='Control Group', icon_emoji=':robot_face:',
+            text=f'*{user_name}* {message}')
+        message_ts = response['ts']
+        self.in_progress_messages[view_id] = message_ts
+        log.info('Storing: %s : %s', view_id, message_ts)
+
+    def delete_in_progress_message(self, view_id: str) -> None:
+        try:
+            ts = self.in_progress_messages.pop(view_id)
+        except KeyError:
+            log.info(f'No in-progress message timestamp stored for view id {view_id}')
+            return
+        self.log_and_send('Removing in-progress message', 'chat.delete', channel=self.qm_channel_id,
+                          ts=ts)
 
     def create_channel(self, puzzle_url: str, prefix: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]

@@ -17,9 +17,10 @@ placebo_app = placebo.Placebo()
 def unlock() -> flask.Response:
     text = flask.request.form['text']
     if not text:
+        trigger_id = flask.request.form['trigger_id']
+        user_id = flask.request.form['user_id']
         rounds = placebo_app.google.all_rounds()
-        placebo_app.slack.unlock_modal(flask.request.form['trigger_id'], rounds,
-                                       placebo_app.last_round)
+        placebo_app.slack.unlock_modal(trigger_id, user_id, rounds, placebo_app.last_round)
         return flask.make_response("", 200)
 
     try:
@@ -35,8 +36,10 @@ def unlock() -> flask.Response:
 def correct() -> flask.Response:
     text = flask.request.form['text']
     if not text:
+        trigger_id = flask.request.form['trigger_id']
+        user_id = flask.request.form['user_id']
         puzzle_names = placebo_app.google.unsolved_puzzles()
-        placebo_app.slack.correct_modal(flask.request.form['trigger_id'], puzzle_names)
+        placebo_app.slack.correct_modal(trigger_id, user_id, puzzle_names)
         return flask.make_response("", 200)
     try:
         puzzle_name, solution = split_correct(text)
@@ -50,7 +53,9 @@ def correct() -> flask.Response:
 def newround() -> flask.Response:
     text = flask.request.form['text']
     if not text:
-        placebo_app.slack.newround_modal(flask.request.form['trigger_id'])
+        trigger_id = flask.request.form['trigger_id']
+        user_id = flask.request.form['user_id']
+        placebo_app.slack.newround_modal(trigger_id, user_id)
         return flask.make_response("", 200)
     words = text.split()
     if len(words) < 2 or not is_url(words[-1]):
@@ -81,14 +86,17 @@ def interact() -> flask.Response:
                         raise BadRequest(f'Unexpected action type {action_type}')
             if callback_id == 'unlock':
                 placebo_app.new_puzzle(**fields)
-                return flask.make_response("", 200)
             elif callback_id == 'correct':
                 placebo_app.solved_puzzle(**fields)
-                return flask.make_response("", 200)
             elif callback_id == 'newround':
                 placebo_app.new_round(**fields)
-                return flask.make_response("", 200)
-            raise BadRequest(f'Unexpected callback_id {callback_id}')
+            else:
+                raise BadRequest(f'Unexpected callback_id {callback_id}')
+            placebo_app.view_closed(data['view']['id'])
+            return flask.make_response("", 200)
+        elif type == 'view_closed':
+            placebo_app.view_closed(data['view']['id'])
+            return flask.make_response("", 200)
         elif type == 'block_actions':
             actions = data['actions']
             if len(actions) != 1:

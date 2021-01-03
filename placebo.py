@@ -48,6 +48,9 @@ class Placebo:
             self, puzzle_name: str, answer: str, response_url: Optional[str] = None) -> None:
         self.queue.put(lambda: self._solved_puzzle(puzzle_name, answer, response_url))
 
+    def view_closed(self, view_id: str) -> None:
+        self.queue.put(lambda: self._view_closed(view_id))
+
     def _worker_thread(self) -> None:
         while True:
             func = self.queue.get()
@@ -111,6 +114,9 @@ class Placebo:
         self.google.mark_row_solved(row_index, answer)
         if channel_name:
             self.slack.solved(channel_name, answer)
+
+    def _view_closed(self, view_id: str) -> None:
+        self.slack.delete_in_progress_message(view_id)
 
 
 def _ephemeral_ack(message, response_url) -> None:
