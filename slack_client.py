@@ -199,9 +199,9 @@ class Slack:
         self.log_and_send('Announcing unlock', 'chat.postMessage', channel=self.unlocks_channel_id,
                           username='Control Group', icon_emoji=':robot_face:', attachments=[attach])
 
-    def announce_round(self, round_name, round_url):
+    def announce_round(self, round_name: str, round_url: str, round_color: str):
         attach = {
-            'color': '#ccc',
+            'color': round_color,
             'title': round_name,
             'title_link': round_url,
             'text': '*New round unlocked!*',

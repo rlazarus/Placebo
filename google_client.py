@@ -15,6 +15,7 @@ from googleapiclient import discovery, http
 from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
 from psycopg2 import extensions
 
+
 log = logging.getLogger('placebo.google_client')
 
 # Full drive access for dev.
@@ -28,6 +29,11 @@ CHANNEL_PATTERNS = [
     re.compile('#([a-z0-9_-]+)'),
 ]
 FILE_ID_PATTERN = re.compile('/d/([a-zA-Z0-9-_]+)')
+
+# The light-gray background color used for metas on the tracking spreadsheet.
+META_BACKGROUND = {'red': 0.85, 'green': 0.85, 'blue': 0.85}
+# The white background color used for everything else.
+PLAIN_BACKGROUND = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
 
 T = TypeVar('T')
 
@@ -177,7 +183,8 @@ class Google:
         if canonicalize(round_name) in canon_rounds:
             row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
             cell = rows[row_index - 1]['values'][0]
-            round_color = hex_color(cell['effectiveFormat']['backgroundColor'])
+            round_color = cell['effectiveFormat']['backgroundColor']
+            new_round = False
         else:
             # If we've never seen this round before, insert at the bottom of the table. That is,
             # before the first blank cell not in the header.
@@ -188,7 +195,10 @@ class Google:
                 # at the very end of the sheet.
                 row_index = len(round_names)
             # If it's a new round, pick a boring default color for the unlock.
-            round_color = "#ccc"
+            # TODO: Take round_color as an argument here, and pass it for new rounds. Accept it from
+            #  the user, or rotate through a list of presets if they don't give one.
+            round_color = {'red': 0.8, 'green': 0.9, 'blue': 1.0}
+            new_round = True
 
         # First insert a new row at that location...
         requests = [{
@@ -217,11 +227,78 @@ class Google:
                 },
             },
         })
+
+        if new_round:
+            # We're adding a new round; draw a line over it and overwrite the round and meta color.
+            requests.extend([
+                {
+                    'updateBorders': {
+                        'range': {
+                            'sheetId': self.puzzle_list_sheet_id,
+                            'startRowIndex': row_index,
+                            'endRowIndex': row_index + 1,
+                        },
+                        'top': {
+                            'style': 'SOLID_THICK',
+                            'color': {'red': 0.0, 'green': 0.0, 'blue': 0.0},
+                        }
+                    }
+                },
+                {
+                    'updateCells': {
+                        'rows': [{
+                            'values': [{'userEnteredFormat': {'backgroundColor': round_color}},
+                                       {'userEnteredFormat': {'backgroundColor': META_BACKGROUND}}]
+                        }],
+                        'fields': 'userEnteredFormat.backgroundColor',
+                        'range': {
+                            'sheetId': self.puzzle_list_sheet_id,
+                            'startRowIndex': row_index,
+                            'endRowIndex': row_index + 1,
+                            'startColumnIndex': 0,
+                            'endColumnIndex': 2,
+                        },
+                    }
+                }
+            ])
+        else:
+            # Otherwise, remove the line and set the color to white, since we don't want to inherit
+            # them from a meta above.
+            requests.extend([
+                {
+                    'updateBorders': {
+                        'range': {
+                            'sheetId': self.puzzle_list_sheet_id,
+                            'startRowIndex': row_index,
+                            'endRowIndex': row_index + 1,
+                        },
+                        'top': {
+                            'style': 'NONE',
+                        }
+                    }
+                },
+                {
+                    'updateCells': {
+                        'rows': [{
+                            'values': [{'userEnteredFormat': {'backgroundColor': PLAIN_BACKGROUND}}]
+                        }],
+                        'fields': 'userEnteredFormat.backgroundColor',
+                        'range': {
+                            'sheetId': self.puzzle_list_sheet_id,
+                            'startRowIndex': row_index,
+                            'endRowIndex': row_index + 1,
+                            'startColumnIndex': 1,
+                            'endColumnIndex': 2,
+                        },
+                    }
+                }
+            ])
+
         batch_request = self.sheets.batchUpdate(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                                 body={'requests': requests})
         self.client.log_and_send('Adding row to tracker', batch_request)
 
-        return round_color
+        return hex_color(round_color)
 
     def set_doc_url(self, puzzle_name: str, doc_url: str) -> None:
         lookup = self.lookup(puzzle_name)

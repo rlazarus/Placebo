@@ -79,9 +79,10 @@ class Placebo:
         prefix = 'meta' if meta else None
         channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix=prefix)
         priority = 'L' if meta else 'M'
-        round_color = self.google.add_row(round_name, puzzle_name, priority, puzzle_url, channel_name)
+        round_color = self.google.add_row(round_name, puzzle_name, priority, puzzle_url,
+                                          channel_name)
         if meta:
-            self.slack.announce_round(round_name, puzzle_url)
+            self.slack.announce_round(round_name, puzzle_url, round_color)
         else:
             self.slack.announce_unlock(round_name, puzzle_name, puzzle_url, channel_name,
                                        channel_id, round_color)
