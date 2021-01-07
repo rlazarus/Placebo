@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from slackclient import SlackClient
 
+import util
+
 log = logging.getLogger('placebo.slack_client')
 
 SUCCESS_EMOJI = ['sunglasses', 'hugging_face', 'dancer', 'muscle', 'thumbsup', 'clap',
@@ -185,13 +187,13 @@ class Slack:
                           topic=f'{puzzle_url} | {doc_url}')
 
     def announce_unlock(self, round_name: Optional[str], puzzle_name: str, puzzle_url: str,
-                        channel_name: str, channel_id: str, round_color: str) -> None:
+                        channel_name: str, channel_id: str, round_color: util.Color) -> None:
         lines = []
         if round_name:
             lines.append(f'Round: {round_name}')
         lines.append(f'<#{channel_id}|{channel_name}>')
         attach = {
-            'color': round_color,
+            'color': round_color.to_hex(),
             'title': puzzle_name,
             'title_link': puzzle_url,
             'text': '\n'.join(lines),
@@ -199,9 +201,9 @@ class Slack:
         self.log_and_send('Announcing unlock', 'chat.postMessage', channel=self.unlocks_channel_id,
                           username='Control Group', icon_emoji=':robot_face:', attachments=[attach])
 
-    def announce_round(self, round_name: str, round_url: str, round_color: str):
+    def announce_round(self, round_name: str, round_url: str, round_color: util.Color):
         attach = {
-            'color': round_color,
+            'color': round_color.to_hex(),
             'title': round_name,
             'title_link': round_url,
             'text': '*New round unlocked!*',

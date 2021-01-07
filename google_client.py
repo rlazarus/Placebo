@@ -15,6 +15,7 @@ from googleapiclient import discovery, http
 from googleapiclient.http import DEFAULT_HTTP_TIMEOUT_SEC
 from psycopg2 import extensions
 
+import util
 
 log = logging.getLogger('placebo.google_client')
 
@@ -31,9 +32,24 @@ CHANNEL_PATTERNS = [
 FILE_ID_PATTERN = re.compile('/d/([a-zA-Z0-9-_]+)')
 
 # The light-gray background color used for metas on the tracking spreadsheet.
-META_BACKGROUND = {'red': 0.85, 'green': 0.85, 'blue': 0.85}
+META_BACKGROUND = util.Color(red=0.85, green=0.85, blue=0.85)
 # The white background color used for everything else.
-PLAIN_BACKGROUND = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+PLAIN_BACKGROUND = util.Color(red=1.0, green=1.0, blue=1.0)
+
+# Some presets to use for round colors if QMs don't pick specific ones. (These are pulled from the
+# Sheets UI, and shuffled to put relatively high-contrast pairs next to each other.)
+ROUND_COLORS = [
+    util.Color(red=0.87, green=0.49, blue=0.42),  # light red berry 2
+    util.Color(red=0.81, green=0.89, blue=0.95),  # light blue 3
+    util.Color(red=0.71, green=0.84, blue=0.66),  # light green 2
+    util.Color(red=0.71, green=0.65, blue=0.84),  # light purple 2
+    util.Color(red=0.98, green=0.8, blue=0.61),  # light orange 2
+    util.Color(red=0.84, green=0.65, blue=0.74),  # light magenta 2
+    util.Color(red=0.92, green=0.6, blue=0.6),  # light red 2
+    util.Color(red=1.0, green=0.9, blue=0.6),  # light yellow 2
+    util.Color(red=0.85, green=0.92, blue=0.83),  # light green 3
+    util.Color(red=0.64, green=0.76, blue=0.96),  # light cornflower blue 2
+]
 
 T = TypeVar('T')
 
@@ -168,7 +184,7 @@ class Google:
         return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str, puzzle_url: str,
-                channel: str) -> str:
+                channel: str) -> util.Color:
         assert priority in {'-', 'L', 'M', 'H'}
         assert not channel.startswith('#')
 
@@ -183,7 +199,7 @@ class Google:
         if canonicalize(round_name) in canon_rounds:
             row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
             cell = rows[row_index - 1]['values'][0]
-            round_color = cell['effectiveFormat']['backgroundColor']
+            round_color = util.Color.from_dict(cell['effectiveFormat']['backgroundColor'])
             new_round = False
         else:
             # If we've never seen this round before, insert at the bottom of the table. That is,
@@ -194,10 +210,10 @@ class Google:
                 # There are no blank round cells after the header? Sounds fake, but okay -- insert
                 # at the very end of the sheet.
                 row_index = len(round_names)
-            # If it's a new round, pick a boring default color for the unlock.
+            # If it's a new round, pick a preset color for the unlock.
             # TODO: Take round_color as an argument here, and pass it for new rounds. Accept it from
-            #  the user, or rotate through a list of presets if they don't give one.
-            round_color = {'red': 0.8, 'green': 0.9, 'blue': 1.0}
+            #  the user, and only use the presets if they don't give one.
+            round_color = ROUND_COLORS[len(set(canon_rounds)) % len(ROUND_COLORS)]
             new_round = True
 
         # First insert a new row at that location...
@@ -247,8 +263,10 @@ class Google:
                 {
                     'updateCells': {
                         'rows': [{
-                            'values': [{'userEnteredFormat': {'backgroundColor': round_color}},
-                                       {'userEnteredFormat': {'backgroundColor': META_BACKGROUND}}]
+                            'values': [{'userEnteredFormat': {'backgroundColor':
+                                                                  round_color.to_dict()}},
+                                       {'userEnteredFormat': {'backgroundColor':
+                                                                  META_BACKGROUND.to_dict()}}]
                         }],
                         'fields': 'userEnteredFormat.backgroundColor',
                         'range': {
@@ -280,7 +298,8 @@ class Google:
                 {
                     'updateCells': {
                         'rows': [{
-                            'values': [{'userEnteredFormat': {'backgroundColor': PLAIN_BACKGROUND}}]
+                            'values': [{'userEnteredFormat': {'backgroundColor':
+                                                                  PLAIN_BACKGROUND.to_dict()}}]
                         }],
                         'fields': 'userEnteredFormat.backgroundColor',
                         'range': {
@@ -298,7 +317,7 @@ class Google:
                                                 body={'requests': requests})
         self.client.log_and_send('Adding row to tracker', batch_request)
 
-        return hex_color(round_color)
+        return round_color
 
     def set_doc_url(self, puzzle_name: str, doc_url: str) -> None:
         lookup = self.lookup(puzzle_name)
@@ -471,7 +490,3 @@ def link_to_channel(link: str) -> Optional[str]:
         if match:
             return match.group(1)
     return None
-
-
-def hex_color(rgb: Dict[str, float]) -> str:
-    return '#' + ''.join(format(int(rgb.get(i, 0) * 255), '02x') for i in ['red', 'green', 'blue'])
