@@ -1,7 +1,7 @@
 import json
 import logging
 import pprint
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 import flask
 from werkzeug.exceptions import BadRequest
@@ -69,50 +69,57 @@ def newround() -> flask.Response:
 
 @app.route('/interact', methods=['POST'])
 def interact() -> flask.Response:
-    data = json.loads(flask.request.form['payload'])
-    log.debug(pprint.pformat(data))
+    payload = json.loads(flask.request.form['payload'])
+    log.debug(pprint.pformat(payload))
     try:
-        type = data['type']
+        type = payload['type']
         if type == 'view_submission':
-            callback_id = data['view']['callback_id']
-            fields = {}
-            for block in data['view']['state']['values'].values():
-                for action_id, action in block.items():
-                    action_type = action['type']
-                    if action_type == 'plain_text_input':
-                        fields[action_id] = action['value']
-                    elif action_type == 'static_select':
-                        fields[action_id] = action['selected_option']['value']
-                    else:
-                        raise BadRequest(f'Unexpected action type {action_type}')
-            if callback_id == 'unlock':
-                placebo_app.new_puzzle(**fields)
-            elif callback_id == 'correct':
-                placebo_app.solved_puzzle(**fields)
-            elif callback_id == 'newround':
-                if 'round_color' in fields:
-                    fields['round_color'] = util.Color.from_hex(fields['round_color'])
-                placebo_app.new_round(**fields)
-            else:
-                raise BadRequest(f'Unexpected callback_id {callback_id}')
-            placebo_app.view_closed(data['view']['id'])
-            return flask.make_response("", 200)
+            return view_submission(payload['view'])
         elif type == 'view_closed':
-            placebo_app.view_closed(data['view']['id'])
+            placebo_app.view_closed(payload['view']['id'])
             return flask.make_response("", 200)
         elif type == 'block_actions':
-            actions = data['actions']
-            if len(actions) != 1:
-                raise BadRequest(f'Got {len(actions)} actions, expected 1')
-            action_id = actions[0]['action_id']
-            if action_id == 'archive':
-                placebo_app.slack.archive(actions[0]['value'])
-                return flask.make_response("", 200)
-            raise BadRequest(f'Unexpected action_id {action_id}')
+            return block_actions(payload['actions'])
         raise BadRequest(f'Unexpected type {type}')
     except BadRequest:
-        logging.exception(pprint.pformat(data))
+        logging.exception(pprint.pformat(payload))
         raise
+
+
+def view_submission(view: Dict[str, Any]) -> flask.Response:
+    callback_id = view['callback_id']
+    fields = {}
+    for block in view['state']['values'].values():
+        for action_id, action in block.items():
+            action_type = action['type']
+            if action_type == 'plain_text_input':
+                fields[action_id] = action['value']
+            elif action_type == 'static_select':
+                fields[action_id] = action['selected_option']['value']
+            else:
+                raise BadRequest(f'Unexpected action type {action_type}')
+    if callback_id == 'unlock':
+        placebo_app.new_puzzle(**fields)
+    elif callback_id == 'correct':
+        placebo_app.solved_puzzle(**fields)
+    elif callback_id == 'newround':
+        if 'round_color' in fields:
+            fields['round_color'] = util.Color.from_hex(fields['round_color'])
+        placebo_app.new_round(**fields)
+    else:
+        raise BadRequest(f'Unexpected callback_id {callback_id}')
+    placebo_app.view_closed(view['id'])
+    return flask.make_response("", 200)
+
+
+def block_actions(actions: Dict[str, Any]) -> flask.Response:
+    if len(actions) != 1:
+        raise BadRequest(f'Got {len(actions)} actions, expected 1')
+    action_id = actions[0]['action_id']
+    if action_id == 'archive':
+        placebo_app.slack.archive(actions[0]['value'])
+        return flask.make_response("", 200)
+    raise BadRequest(f'Unexpected action_id {action_id}')
 
 
 @app.route('/google_oauth')
