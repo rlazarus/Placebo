@@ -128,7 +128,8 @@ class Slack:
                                      view=view)
         self.post_in_progress_message(response['view']['id'], user_id, 'is adding an unlock...')
 
-    def correct_modal(self, trigger_id: str, user_id: str, puzzle_names: List[str]) -> None:
+    def correct_modal(self, trigger_id: str, user_id: str,
+                      puzzles_by_round: Dict[str, List[str]]) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'correct',
@@ -140,7 +141,12 @@ class Slack:
                     'element': {
                         'type': 'static_select',
                         'action_id': 'puzzle_name',
-                        'options': [{'text': plain_text(p), 'value': p} for p in puzzle_names],
+                        'option_groups': [
+                            {
+                                'label': plain_text(round),
+                                'options': [{'text': plain_text(p), 'value': p} for p in puzzles]
+                            }
+                            for round, puzzles in puzzles_by_round.items()],
                         'placeholder': plain_text('Choose a puzzle')
                     }
                 },

@@ -388,17 +388,17 @@ class Google:
                 result.append(cell)
         return result
 
-    def unsolved_puzzles(self) -> List[str]:
+    def unsolved_puzzles_by_round(self) -> Dict[str, List[str]]:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
-                                           range='Puzzle List!B3:G')
+                                           range='Puzzle List!A3:G')
         response = self.client.log_and_send('Fetching puzzle names', request)
-        result = []
+        result: Dict[str, List[str]] = {}
         for row in response['values']:
-            if len(row) < 6:
+            if len(row) < 7:
                 continue
-            name, status = row[0], row[5]
+            round, name, status = row[0], row[1], row[6]
             if status not in {'Solved', 'Backsolved'} and name:
-                result.append(name)
+                result.setdefault(round, []).append(name)
         return result
 
     def mark_doc_solved(self, doc_url: str) -> None:
