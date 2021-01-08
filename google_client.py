@@ -210,9 +210,13 @@ class Google:
             try:
                 row_index = round_names.index('', 2)
             except ValueError:
-                # There are no blank round cells after the header? Sounds fake, but okay -- insert
-                # at the very end of the sheet.
-                row_index = len(round_names)
+                # There are no blank round cells after the header? Insert it right above the Event
+                # puzzles.
+                try:
+                    row_index = round_names.index('Event')
+                except ValueError:
+                    # No blank round cells *and* no Event puzzles? Okay... just add it at the end.
+                    row_index = len(round_names)
             # If it's a new round, and no color was given, pick a preset color for the unlock.
             if not round_color:
                 round_color = ROUND_COLORS[len(set(canon_rounds)) % len(ROUND_COLORS)]
