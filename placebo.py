@@ -9,6 +9,7 @@ import requests
 
 import google_client
 import slack_client
+import util
 
 logging.basicConfig(format='{asctime} {name} {levelname}: {message}', style='{')
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)  # It's real noisy.
@@ -36,13 +37,13 @@ class Placebo:
     #   our API backends.
     # - Ensures we're never handling more than one request at a time.
 
-    def new_round(self, round_name: str, round_url: str) -> None:
-        self.queue.put(lambda: self._new_round(round_name, round_url))
+    def new_round(self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
+        self.queue.put(lambda: self._new_round(round_name, round_url, round_color))
 
     def new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
                    response_url: Optional[str] = None) -> None:
         self.queue.put(lambda: self._new_puzzle(round_name, puzzle_name, puzzle_url, response_url,
-                                                meta=False))
+                                                meta=False, round_color=None))
 
     def solved_puzzle(
             self, puzzle_name: str, answer: str, response_url: Optional[str] = None) -> None:
@@ -64,12 +65,15 @@ class Placebo:
                 except BaseException:
                     log.exception('Also, failed to send a Slack DM about it.')
 
-    def _new_round(self, round_name: str, round_url: str) -> None:
+    def _new_round(
+            self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
         meta_name = round_name + " Meta"
-        self._new_puzzle(round_name, meta_name, round_url, response_url=None, meta=True)
+        self._new_puzzle(round_name, meta_name, round_url, response_url=None, meta=True,
+                         round_color=round_color)
 
     def _new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
-                    response_url: Optional[str], meta: bool) -> None:
+                    response_url: Optional[str], meta: bool,
+                    round_color: Optional[util.Color]) -> None:
         _ephemeral_ack(f'Adding *{puzzle_name}*...', response_url)
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
@@ -80,7 +84,7 @@ class Placebo:
         channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix=prefix)
         priority = 'L' if meta else 'M'
         round_color = self.google.add_row(round_name, puzzle_name, priority, puzzle_url,
-                                          channel_name)
+                                          channel_name, round_color)
         if meta:
             self.slack.announce_round(round_name, puzzle_url, round_color)
         else:

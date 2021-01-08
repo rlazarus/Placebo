@@ -57,6 +57,18 @@ class Slack:
                         'action_id': 'round_url',
                         'placeholder': plain_text('https://example.com/round/lorem_ipsum'),
                     },
+                },
+                {
+                    'type': 'input',
+                    'label': plain_text('Color'),
+                    'element': {
+                        'type': 'plain_text_input',
+                        'action_id': 'round_color',
+                        'placeholder': plain_text('#6789ab'),
+                    },
+                    'hint': plain_text("You can leave this blank, and I'll just rotate through "
+                                       "some reasonable presets."),
+                    'optional': True,
                 }
             ],
             'close': plain_text('Cancel'),

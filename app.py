@@ -7,6 +7,7 @@ import flask
 from werkzeug.exceptions import BadRequest
 
 import placebo
+import util
 
 log = logging.getLogger('placebo.app')
 app = flask.Flask(__name__)
@@ -62,7 +63,7 @@ def newround() -> flask.Response:
         return ephemeral('Try it like this: /newround Round Name https://example.com/round')
     name = ' '.join(words[:-1])
     url = words[-1]
-    placebo_app.new_round(name, url)
+    placebo_app.new_round(name, url, None)
     return ephemeral(f'Adding {name}...')
 
 
@@ -89,6 +90,8 @@ def interact() -> flask.Response:
             elif callback_id == 'correct':
                 placebo_app.solved_puzzle(**fields)
             elif callback_id == 'newround':
+                if 'round_color' in fields:
+                    fields['round_color'] = util.Color.from_hex(fields['round_color'])
                 placebo_app.new_round(**fields)
             else:
                 raise BadRequest(f'Unexpected callback_id {callback_id}')

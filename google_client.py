@@ -184,7 +184,7 @@ class Google:
         return url
 
     def add_row(self, round_name: str, puzzle_name: str, priority: str, puzzle_url: str,
-                channel: str) -> util.Color:
+                channel: str, round_color: Optional[util.Color]) -> util.Color:
         assert priority in {'-', 'L', 'M', 'H'}
         assert not channel.startswith('#')
 
@@ -198,8 +198,11 @@ class Google:
         canon_rounds = [canonicalize(r) for r in round_names]
         if canonicalize(round_name) in canon_rounds:
             row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
-            cell = rows[row_index - 1]['values'][0]
-            round_color = util.Color.from_dict(cell['effectiveFormat']['backgroundColor'])
+            if not round_color:
+                # No color ought to be given for a round we've already seen... but if one *is*
+                # given, we won't overwrite it.
+                cell = rows[row_index - 1]['values'][0]
+                round_color = util.Color.from_dict(cell['effectiveFormat']['backgroundColor'])
             new_round = False
         else:
             # If we've never seen this round before, insert at the bottom of the table. That is,
@@ -210,10 +213,9 @@ class Google:
                 # There are no blank round cells after the header? Sounds fake, but okay -- insert
                 # at the very end of the sheet.
                 row_index = len(round_names)
-            # If it's a new round, pick a preset color for the unlock.
-            # TODO: Take round_color as an argument here, and pass it for new rounds. Accept it from
-            #  the user, and only use the presets if they don't give one.
-            round_color = ROUND_COLORS[len(set(canon_rounds)) % len(ROUND_COLORS)]
+            # If it's a new round, and no color was given, pick a preset color for the unlock.
+            if not round_color:
+                round_color = ROUND_COLORS[len(set(canon_rounds)) % len(ROUND_COLORS)]
             new_round = True
 
         # First insert a new row at that location...
