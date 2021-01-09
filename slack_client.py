@@ -3,8 +3,9 @@ import logging
 import os
 import pprint
 import random
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import requests
 from slackclient import SlackClient
 
 import util
@@ -280,6 +281,26 @@ class Slack:
             self.archive(channel_id)
         else:
             log.info('Not archiving puzzle channel.')
+
+    def remove_archive_offer(self, response_url: str, message: Dict[str, Any],
+                             replacement_text: str) -> None:
+        # Remove the archive button from the original message (but keep the first block, which says
+        # the answer was correct).
+        message['blocks'][1] = {
+            'type': 'section',
+            'text': {
+                'type': 'mrkdwn',
+                'text': replacement_text
+            }
+        }
+        message['replace_original'] = True
+        try:
+            log.debug(message)
+            response = requests.post(response_url, json=message)
+            response.raise_for_status()
+        except requests.RequestException:
+            # Log it but swallow it; we'll go ahead and archive the channel anyway.
+            log.exception('HTTP error while updating the archive offer')
 
     def archive(self, channel_id):
         self.log_and_send('Archiving puzzle channel', 'conversations.archive', channel=channel_id)

@@ -4,7 +4,6 @@ import pprint
 from typing import Any, Dict, Tuple
 
 import flask
-import requests
 from werkzeug.exceptions import BadRequest
 
 import placebo
@@ -119,27 +118,11 @@ def block_actions(payload: Dict[str, Any]) -> flask.Response:
         raise BadRequest(f'Got {len(actions)} actions, expected 1')
     action_id = actions[0]['action_id']
     if action_id == 'archive':
-        # Remove the archive button from the original message (but keep the first block, which says
-        # the answer was correct).
-        user = payload['user']['id']
-        message = payload['message']
-        message['blocks'][1] = {
-            'type': 'section',
-            'text': {
-                'type': 'mrkdwn',
-                'text': f"Archiving this channel at <@{user}>'s request.",
-            }
-        }
-        message['replace_original'] = True
-        try:
-            response = requests.post(payload['response_url'], json=message)
-            response.raise_for_status()
-        except requests.RequestException:
-            log.exception('HTTP error while updating the archive offer')
-            return flask.make_response("", 200)
-
+        user_id = payload['user']['id']
+        placebo_app.slack.remove_archive_offer(
+            payload['response_url'], payload['message'],
+            f"Archiving this channel at <@{user_id}>'s request.")
         placebo_app.slack.archive(actions[0]['value'])
-
         return flask.make_response("", 200)
     raise BadRequest(f'Unexpected action_id {action_id}')
 
