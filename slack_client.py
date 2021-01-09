@@ -31,48 +31,61 @@ class Slack:
             self.unlocks_channel_id = os.environ['PLACEBO_UNLOCKS_CHANNEL_ID']
         self.admin_user = os.environ['PLACEBO_ADMIN_SLACK_USER']
         self.in_progress_messages: Dict[str, str] = {}
+        self.metas_have_names = (os.environ.get('PLACEBO_METAS_HAVE_NAMES') == '1' and
+                                 os.environ.get('PLACEBO_CREATE_METAS') == '1')
 
     def dm_admin(self, message: str):
         self.log_and_send('DMing admin user', 'chat.postMessage', channel=self.admin_user,
                           text=message)
 
     def newround_modal(self, trigger_id: str, user_id: str) -> None:
+        blocks = [
+            {
+                'type': 'input',
+                'label': plain_text('Name'),
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'round_name',
+                    'placeholder': plain_text('Lorem Ipsum'),
+                },
+            },
+            {
+                'type': 'input',
+                'label': plain_text('URL'),
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'round_url',
+                    'placeholder': plain_text('https://example.com/round/lorem_ipsum'),
+                },
+            },
+            {
+                'type': 'input',
+                'label': plain_text('Color'),
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'round_color',
+                    'placeholder': plain_text('#6789ab'),
+                },
+                'hint': plain_text("You can leave this blank, and I'll just rotate through some "
+                                   "reasonable presets."),
+                'optional': True,
+            }
+        ]
+        if self.metas_have_names:
+            blocks.append({
+                'type': 'input',
+                'label': plain_text('Meta Name'),
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'meta_name',
+                    'placeholder': plain_text('Lorem Ipsum'),
+                },
+            })
         view = {
             'type': 'modal',
             'callback_id': 'newround',
             'title': plain_text('Unlock new round'),
-            'blocks': [
-                {
-                    'type': 'input',
-                    'label': plain_text('Name'),
-                    'element': {
-                        'type': 'plain_text_input',
-                        'action_id': 'round_name',
-                        'placeholder': plain_text('Lorem Ipsum'),
-                    },
-                },
-                {
-                    'type': 'input',
-                    'label': plain_text('URL'),
-                    'element': {
-                        'type': 'plain_text_input',
-                        'action_id': 'round_url',
-                        'placeholder': plain_text('https://example.com/round/lorem_ipsum'),
-                    },
-                },
-                {
-                    'type': 'input',
-                    'label': plain_text('Color'),
-                    'element': {
-                        'type': 'plain_text_input',
-                        'action_id': 'round_color',
-                        'placeholder': plain_text('#6789ab'),
-                    },
-                    'hint': plain_text("You can leave this blank, and I'll just rotate through "
-                                       "some reasonable presets."),
-                    'optional': True,
-                }
-            ],
+            'blocks': blocks,
             'close': plain_text('Cancel'),
             'submit': plain_text('Submit'),
             'notify_on_close': True,
@@ -196,13 +209,19 @@ class Slack:
         self.log_and_send('Removing in-progress message', 'chat.delete', channel=self.qm_channel_id,
                           ts=ts)
 
-    def create_channel(self, puzzle_url: str, prefix: Optional[str] = None) -> Tuple[str, str]:
+    def create_channel(self, puzzle_url: str, prefix: Optional[str] = None,
+                       alias: Optional[str] = None) -> Tuple[str, str]:
         puzzle_slug = puzzle_url.rstrip('/').split('/')[-1]
         name = f'{prefix}_{puzzle_slug}' if prefix else puzzle_slug
-        response = self.log_and_send('Creating channel', 'conversations.create', name=name)
-        assert response['ok']
+        if alias:
+            response = self.log_and_send('Creating channel', 'conversations.create', name=alias)
+            id = response['channel']['id']
+            response = self.log_and_send('Renaming channel', 'conversations.rename', channel=id,
+                                         name=name)
+        else:
+            response = self.log_and_send('Creating channel', 'conversations.create', name=name)
+            id = response['channel']['id']
         name = response['channel']['name']
-        id = response['channel']['id']
         self.log_and_send('Setting topic (URL only)', 'conversations.setTopic', channel=id,
                           topic=puzzle_url)
         return name, id

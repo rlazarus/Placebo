@@ -3,7 +3,6 @@ import logging
 import os
 import pprint
 import re
-import string
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 import httplib2
@@ -22,8 +21,6 @@ log = logging.getLogger('placebo.google_client')
 # Full drive access for dev.
 SCOPE = 'https://www.googleapis.com/auth/drive'
 USER = 'controlgroup.mh@gmail.com'
-
-NAME_CHARACTERS = string.ascii_lowercase + string.digits + '_'
 
 CHANNEL_PATTERNS = [
     re.compile('controlgroup.slack.com/messages/([a-z0-9_-]+)'),
@@ -209,10 +206,10 @@ class Google:
         rows = response['sheets'][0]['data'][0]['rowData']
         round_names = [(row['values'][0].get('formattedValue', '') if 'values' in row else '')
                        for row in rows]
-        canon_rounds = [canonicalize(r) for r in round_names]
+        canon_rounds = [util.canonicalize(r) for r in round_names]
         round_name = cell_values[0]
-        if canonicalize(round_name) in canon_rounds:
-            row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
+        if util.canonicalize(round_name) in canon_rounds:
+            row_index = last_index(canon_rounds, util.canonicalize(round_name)) + 1
             if not round_color:
                 # No color ought to be given for a round we've already seen... but if one *is*
                 # given, we won't overwrite it.
@@ -365,10 +362,10 @@ class Google:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!B:B', majorDimension='COLUMNS')
         response = self.client.log_and_send('Checking tracking sheet for puzzle', request)
-        puzzle_name = canonicalize(puzzle_name)
+        puzzle_name = util.canonicalize(puzzle_name)
         column = response['values'][0]
         for cell in column:
-            if puzzle_name in canonicalize(cell):
+            if puzzle_name in util.canonicalize(cell):
                 return True
         return False
 
@@ -376,10 +373,10 @@ class Google:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!A:G')
         response = self.client.log_and_send('Fetching tracking sheet', request)
-        puzzle_name = canonicalize(puzzle_name)
+        puzzle_name = util.canonicalize(puzzle_name)
         matching_rows = []
         for row_index, row in enumerate(response['values']):
-            if len(row) > 5 and puzzle_name in canonicalize(row[1]):
+            if len(row) > 5 and puzzle_name in util.canonicalize(row[1]):
                 matching_rows.append((row_index, row[4], link_to_channel(row[5])))
         if not matching_rows:
             return None
@@ -494,11 +491,6 @@ def row_data(cell_values: Iterable[str]):
         else:
             values.append({'userEnteredValue': {'stringValue': value}})
     return {'values': values}
-
-
-def canonicalize(name: str) -> str:
-    return ''.join(filter(lambda c: c in NAME_CHARACTERS,
-                          name.lower().replace('-', '_').replace(' ', '_')))
 
 
 def channel_to_link(channel: str) -> str:

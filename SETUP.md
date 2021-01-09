@@ -37,5 +37,6 @@ Variables to set during Hunt, as the round structure reveals itself:
 Variable | Contents
 --- | ---
 PLACEBO_CREATE_METAS | If set to 1, a metapuzzle is automatically created for each unlocked round. If missing or set to any other value, an empty row is added to the tracker but no spreadsheet or channel is created. 
+PLACEBO_METAS_HAVE_NAMES | If set to 1, metapuzzles have their own names (apart from just "Round Name Meta"). Those names are listed in the tracker, and used as aliases for the Slack channel.
 
 [Google API console]: https://console.developers.google.com/apis/credentials

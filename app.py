@@ -64,7 +64,7 @@ def newround() -> flask.Response:
         return ephemeral('Try it like this: /newround Round Name https://example.com/round')
     name = ' '.join(words[:-1])
     url = words[-1]
-    placebo_app.new_round(name, url, None)
+    placebo_app.new_round(name, url, None, None)
     return ephemeral(f'Adding {name}...')
 
 

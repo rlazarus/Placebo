@@ -19,6 +19,8 @@ log.setLevel(logging.DEBUG if os.getenv('PLACEBO_DEBUG_LOGS') == '1' else loggin
 class Placebo:
     def __init__(self) -> None:
         self.create_metas = os.getenv('PLACEBO_CREATE_METAS', '1') == '1'
+        self.metas_have_names = (self.create_metas and
+                                 os.environ.get('PLACEBO_METAS_HAVE_NAMES') == '1')
         self.google = google_client.Google()
         self.slack = slack_client.Slack()
         log.addHandler(slack_client.SlackLogHandler(self.slack, level=logging.ERROR))
@@ -38,8 +40,9 @@ class Placebo:
     #   our API backends.
     # - Ensures we're never handling more than one request at a time.
 
-    def new_round(self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
-        self.queue.put(lambda: self._new_round(round_name, round_url, round_color))
+    def new_round(self, round_name: str, round_url: str, round_color: Optional[util.Color],
+                  meta_name: Optional[str] = None) -> None:
+        self.queue.put(lambda: self._new_round(round_name, round_url, round_color, meta_name))
 
     def new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
                    response_url: Optional[str] = None) -> None:
@@ -62,10 +65,11 @@ class Placebo:
                 # TODO: Reply to the original command if we can.
                 log.exception('Error in worker thread.')
 
-    def _new_round(
-            self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
+    def _new_round(self, round_name: str, round_url: str, round_color: Optional[util.Color],
+                   meta_name: Optional[str]) -> None:
         if self.create_metas:
-            meta_name = round_name + " Meta"
+            if not meta_name:
+                meta_name = f'{round_name} Meta'
             self._new_puzzle(round_name, meta_name, round_url, response_url=None, meta=True,
                              round_color=round_color)
         else:
@@ -77,23 +81,33 @@ class Placebo:
                     response_url: Optional[str], meta: bool,
                     round_color: Optional[util.Color]) -> None:
         _ephemeral_ack(f'Adding *{puzzle_name}*...', response_url)
-        if self.google.exists(puzzle_name):
-            raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
+        if meta and self.metas_have_names:
+            full_puzzle_name = f'{puzzle_name} ({round_name} Meta)'
+        else:
+            full_puzzle_name = puzzle_name
+        if self.google.exists(full_puzzle_name):
+            raise KeyError(f'Puzzle "{full_puzzle_name}" is already in the tracker.')
 
         # Creating the spreadsheet is super slow, so do it in parallel.
-        doc_url_future = util.future(self.google.create_puzzle_spreadsheet, [puzzle_name])
+        doc_url_future = util.future(self.google.create_puzzle_spreadsheet, [full_puzzle_name])
 
         # Meanwhile, set up everything else...
         self.last_round = round_name
-        prefix = 'meta' if meta else None
-        channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix=prefix)
+        if meta and self.metas_have_names:
+            alias = puzzle_name
+            channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix='meta',
+                                                                 alias=alias)
+        elif meta:
+            channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix='meta')
+        else:
+            channel_name, channel_id = self.slack.create_channel(puzzle_url)
         priority = 'L' if meta else 'M'
-        round_color = self.google.add_row(round_name, puzzle_name, priority, puzzle_url,
+        round_color = self.google.add_row(round_name, full_puzzle_name, priority, puzzle_url,
                                           channel_name, round_color)
         if meta:
             self.slack.announce_round(round_name, puzzle_url, round_color)
         else:
-            self.slack.announce_unlock(round_name, puzzle_name, puzzle_url, channel_name,
+            self.slack.announce_unlock(round_name, full_puzzle_name, puzzle_url, channel_name,
                                        channel_id, round_color)
 
         # ... then wait for the doc URL, and go back and fill it in. But don't hold up the worker
@@ -101,13 +115,13 @@ class Placebo:
         def await_and_finish():
             doc_url = doc_url_future.wait()
             self.queue.put(
-                lambda: self._finish_new_puzzle(puzzle_name, puzzle_url, channel_id, doc_url))
+                lambda: self._finish_new_puzzle(full_puzzle_name, puzzle_url, channel_id, doc_url))
         threading.Thread(target=await_and_finish).start()
 
     def _finish_new_puzzle(
-            self, puzzle_name: str, puzzle_url: str, channel_id: str, doc_url: str) -> None:
+            self, full_puzzle_name: str, puzzle_url: str, channel_id: str, doc_url: str) -> None:
         try:
-            self.google.set_doc_url(puzzle_name, doc_url)
+            self.google.set_doc_url(full_puzzle_name, doc_url)
         except KeyError:
             log.exception('Tracker row went missing before we got to it -- puzzle name changed?')
         except google_client.UrlConflictError as e:

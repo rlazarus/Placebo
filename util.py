@@ -1,8 +1,11 @@
 import dataclasses
+import string
 import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Generic, Iterable, Literal, Mapping, Optional, TypeVar
 
+
+NAME_CHARACTERS = string.ascii_lowercase + string.digits + '_'
 
 @dataclass
 class Color:
@@ -67,3 +70,8 @@ def future(f: Callable[..., T], args: Optional[Iterable[Any]] = None,
 
     threading.Thread(target=do_f).start()
     return future
+
+
+def canonicalize(name: str) -> str:
+    return ''.join(filter(lambda c: c in NAME_CHARACTERS,
+                          name.lower().replace('-', '_').replace(' ', '_')))
