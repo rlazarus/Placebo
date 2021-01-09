@@ -94,8 +94,16 @@ class Placebo:
             self.slack.announce_unlock(round_name, puzzle_name, puzzle_url, channel_name,
                                        channel_id, round_color)
 
-        # ... then wait for the doc URL, and go back and fill it in.
-        doc_url = doc_url_future.wait()
+        # ... then wait for the doc URL, and go back and fill it in. But don't hold up the worker
+        # thread in the meantime.
+        def await_and_finish():
+            doc_url = doc_url_future.wait()
+            self.queue.put(
+                lambda: self._finish_new_puzzle(puzzle_name, puzzle_url, channel_id, doc_url))
+        threading.Thread(target=await_and_finish).start()
+
+    def _finish_new_puzzle(
+            self, puzzle_name: str, puzzle_url: str, channel_id: str, doc_url: str) -> None:
         try:
             self.google.set_doc_url(puzzle_name, doc_url)
         except KeyError:
