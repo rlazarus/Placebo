@@ -78,7 +78,10 @@ class Placebo:
         if self.google.exists(puzzle_name):
             raise KeyError(f'Puzzle "{puzzle_name}" is already in the tracker.')
 
-        # Creating the spreadsheet is super slow, so do everything else first...
+        # Creating the spreadsheet is super slow, so do it in parallel.
+        doc_url_future = util.future(self.google.create_puzzle_spreadsheet, [puzzle_name])
+
+        # Meanwhile, set up everything else...
         self.last_round = round_name
         prefix = 'meta' if meta else None
         channel_name, channel_id = self.slack.create_channel(puzzle_url, prefix=prefix)
@@ -91,11 +94,8 @@ class Placebo:
             self.slack.announce_unlock(round_name, puzzle_name, puzzle_url, channel_name,
                                        channel_id, round_color)
 
-        # ... then wait. Any further unlocks/solves will still wait in the queue, which isn't great,
-        # but at least there was immediate feedback for this puzzle.
-        doc_url = self.google.create_puzzle_spreadsheet(puzzle_name)
-
-        # Once we have a URL for the spreadsheet, go back and fill it in.
+        # ... then wait for the doc URL, and go back and fill it in.
+        doc_url = doc_url_future.wait()
         try:
             self.google.set_doc_url(puzzle_name, doc_url)
         except KeyError:

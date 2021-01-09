@@ -1,6 +1,7 @@
 import dataclasses
+import threading
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Any, Callable, Dict, Generic, Iterable, Literal, Mapping, Optional, TypeVar
 
 
 @dataclass
@@ -24,3 +25,45 @@ class Color:
 
     def to_dict(self) -> str:
         return dataclasses.asdict(self)
+
+
+T = TypeVar('T')
+
+
+class Future(Generic[T]):
+    def __init__(self):
+        self._event = threading.Event()
+        self._value: Optional[T] = None
+        self._exception: Optional[BaseException] = None
+
+    def set(self, value: T) -> None:
+        self._value = value
+        self._event.set()
+
+    def set_exception(self, exception: BaseException) -> None:
+        self._exception = exception
+        self._event.set()
+
+    def wait(self) -> T:
+        self._event.wait()
+        return self._value
+
+
+def future(f: Callable[..., T], args: Optional[Iterable[Any]] = None,
+           kwargs: Optional[Mapping[str, Any]] = None) -> Future[T]:
+    if args is None:
+        args = ()
+    if kwargs is None:
+        kwargs = {}
+    future = Future()
+
+    def do_f():
+        try:
+            result = f(*args, **kwargs)
+        except BaseException as e:
+            future.set_exception(e)
+        else:
+            future.set(result)
+
+    threading.Thread(target=do_f).start()
+    return future
