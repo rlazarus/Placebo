@@ -388,18 +388,22 @@ class Google:
                 result.append(cell)
         return result
 
-    def unsolved_puzzles_by_round(self) -> Dict[str, List[str]]:
+    def unsolved_puzzles_by_round(
+            self, channel_name: str) -> Tuple[Dict[str, List[str]], Optional[str]]:
         request = self.sheets.values().get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                            range='Puzzle List!A3:G')
         response = self.client.log_and_send('Fetching puzzle names', request)
         result: Dict[str, List[str]] = {}
+        default_puzzle: Optional[str] = None
         for row in response['values']:
             if len(row) < 7:
                 continue
-            round, name, status = row[0], row[1], row[6]
+            round, name, _, _, _, channel_link, status = row
             if status not in {'Solved', 'Backsolved'} and name:
                 result.setdefault(round, []).append(name)
-        return result
+            if channel_name and link_to_channel(channel_link) == channel_name:
+                default_puzzle = name
+        return result, default_puzzle
 
     def mark_doc_solved(self, doc_url: str) -> None:
         # Find the file ID from its URL.

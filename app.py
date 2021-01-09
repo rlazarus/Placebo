@@ -39,8 +39,9 @@ def correct() -> flask.Response:
     if not text:
         trigger_id = flask.request.form['trigger_id']
         user_id = flask.request.form['user_id']
-        puzzles_by_round = placebo_app.google.unsolved_puzzles_by_round()
-        placebo_app.slack.correct_modal(trigger_id, user_id, puzzles_by_round)
+        puzzles_by_round, default_puzzle = placebo_app.google.unsolved_puzzles_by_round(
+            flask.request.form['channel_name'])
+        placebo_app.slack.correct_modal(trigger_id, user_id, puzzles_by_round, default_puzzle)
         return flask.make_response("", 200)
     try:
         puzzle_name, solution = split_correct(text)

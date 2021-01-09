@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import logging
 import os
 import pprint
@@ -129,8 +130,8 @@ class Slack:
                                      view=view)
         self.post_in_progress_message(response['view']['id'], user_id, 'is adding an unlock...')
 
-    def correct_modal(self, trigger_id: str, user_id: str,
-                      puzzles_by_round: Dict[str, List[str]]) -> None:
+    def correct_modal(self, trigger_id: str, user_id: str, puzzles_by_round: Dict[str, List[str]],
+                      default_puzzle: Optional[str]) -> None:
         view = {
             'type': 'modal',
             'callback_id': 'correct',
@@ -165,6 +166,11 @@ class Slack:
             'submit': plain_text('Submit'),
             'notify_on_close': True,
         }
+        if default_puzzle in itertools.chain.from_iterable(puzzles_by_round.values()):
+            view['blocks'][0]['element']['initial_option'] = {
+                'text': plain_text(default_puzzle),
+                'value': default_puzzle,
+            }
         response = self.log_and_send('Opening /correct modal', 'views.open', trigger_id=trigger_id,
                                      view=view)
         self.post_in_progress_message(response['view']['id'], user_id,
