@@ -346,6 +346,28 @@ class Slack:
         return response
 
 
+class SlackLogHandler(logging.Handler):
+    def __init__(self, slack: Slack, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.slack = slack
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
+        parts = message.split('\n', 1)
+        if len(parts) == 1:
+            return parts[0]
+        else:
+            first, rest = parts
+            return f'{first}\n```{rest}```'
+
+    def emit(self, record: logging.LogRecord) -> None:
+        message = self.format(record)
+        try:
+            self.slack.dm_admin(message)
+        except BaseException:
+            self.handleError(record)
+
+
 def plain_text(text: str, emoji: bool = False) -> Dict[str, Union[str, bool]]:
     return {
         'type': 'plain_text',

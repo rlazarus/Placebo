@@ -21,6 +21,7 @@ class Placebo:
     def __init__(self) -> None:
         self.google = google_client.Google()
         self.slack = slack_client.Slack()
+        log.addHandler(slack_client.SlackLogHandler(self.slack, level=logging.ERROR))
         self.queue: queue.Queue[Callable[[], None]] = queue.Queue()
         # If set, it's the round in which the most recent puzzle was unlocked. It's used as the
         # default round for the unlock dialog, to make repeated unlocks easier.
@@ -60,10 +61,6 @@ class Placebo:
             except BaseException:
                 # TODO: Reply to the original command if we can.
                 log.exception('Error in worker thread.')
-                try:
-                    self.slack.dm_admin(f'Error in worker thread:\n\n```{traceback.format_exc()}```')
-                except BaseException:
-                    log.exception('Also, failed to send a Slack DM about it.')
 
     def _new_round(
             self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
