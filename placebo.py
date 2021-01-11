@@ -2,7 +2,6 @@ import logging
 import os
 import queue
 import threading
-import traceback
 from typing import Callable, Optional
 
 import requests
@@ -19,6 +18,7 @@ log.setLevel(logging.DEBUG if os.getenv('PLACEBO_DEBUG_LOGS') == '1' else loggin
 
 class Placebo:
     def __init__(self) -> None:
+        self.create_metas = os.getenv('PLACEBO_CREATE_METAS', '1') == '1'
         self.google = google_client.Google()
         self.slack = slack_client.Slack()
         log.addHandler(slack_client.SlackLogHandler(self.slack, level=logging.ERROR))
@@ -64,9 +64,14 @@ class Placebo:
 
     def _new_round(
             self, round_name: str, round_url: str, round_color: Optional[util.Color]) -> None:
-        meta_name = round_name + " Meta"
-        self._new_puzzle(round_name, meta_name, round_url, response_url=None, meta=True,
-                         round_color=round_color)
+        if self.create_metas:
+            meta_name = round_name + " Meta"
+            self._new_puzzle(round_name, meta_name, round_url, response_url=None, meta=True,
+                             round_color=round_color)
+        else:
+            self.last_round = round_name
+            round_color = self.google.add_empty_row(round_name, round_color)
+            self.slack.announce_round(round_name, round_url, round_color)
 
     def _new_puzzle(self, round_name: str, puzzle_name: str, puzzle_url: str,
                     response_url: Optional[str], meta: bool,

@@ -4,7 +4,7 @@ import os
 import pprint
 import re
 import string
-from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar, Union
 
 import httplib2
 import psycopg2
@@ -128,6 +128,9 @@ class LoggedInClient:
         raise TypeError('Already logged in.')
 
 
+Row = Tuple[str, str, str, str, str, str, str]
+
+
 class Google:
     def __init__(self):
         self.client: Union[LoggedInClient, LoggedOutClient] = LoggedOutClient()
@@ -187,7 +190,18 @@ class Google:
                 channel: str, round_color: Optional[util.Color]) -> util.Color:
         assert priority in {'-', 'L', 'M', 'H'}
         assert not channel.startswith('#')
+        slack_link = channel_to_link(channel)
+        cell_values = (round_name, puzzle_name, priority, puzzle_url, '🤖 One sec...', slack_link,
+                       'Not started')
+        round_color = self._add_row(cell_values, round_color)
+        return round_color
 
+    def add_empty_row(self, round_name: str, round_color: Optional[util.Color]) -> util.Color:
+        cell_values = (round_name, '', '', '', '', '', '')
+        round_color = self._add_row(cell_values, round_color)
+        return round_color
+
+    def _add_row(self, cell_values: Row, round_color: util.Color) -> util.Color:
         # Find the last row that matches this round; we'll insert below it.
         request = self.sheets.get(spreadsheetId=self.puzzle_list_spreadsheet_id,
                                   ranges='Puzzle List!A:A', includeGridData=True)
@@ -196,6 +210,7 @@ class Google:
         round_names = [(row['values'][0].get('formattedValue', '') if 'values' in row else '')
                        for row in rows]
         canon_rounds = [canonicalize(r) for r in round_names]
+        round_name = cell_values[0]
         if canonicalize(round_name) in canon_rounds:
             row_index = last_index(canon_rounds, canonicalize(round_name)) + 1
             if not round_color:
@@ -235,9 +250,6 @@ class Google:
             }
         }]
         # ... then update the values.
-        slack_link = channel_to_link(channel)
-        cell_values = [round_name, puzzle_name, priority, puzzle_url, '🤖 One sec...', slack_link,
-                       'Not started']
         requests.append({
             'updateCells': {
                 'rows': [row_data(cell_values)],
@@ -474,7 +486,7 @@ def last_index(l: List[T], value: T) -> int:
     raise ValueError
 
 
-def row_data(cell_values: List[str]):
+def row_data(cell_values: Iterable[str]):
     values = []
     for value in cell_values:
         if value.startswith('='):
