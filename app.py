@@ -104,7 +104,7 @@ def view_submission(view: Dict[str, Any]) -> flask.Response:
     elif callback_id == 'correct':
         placebo_app.solved_puzzle(**fields)
     elif callback_id == 'newround':
-        if 'round_color' in fields:
+        if fields.get('round_color'):
             fields['round_color'] = util.Color.from_hex(fields['round_color'])
         placebo_app.new_round(**fields)
     else:
