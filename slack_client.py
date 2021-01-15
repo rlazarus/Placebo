@@ -257,6 +257,12 @@ class Slack:
                           channel=self.unlocks_channel_id, username='Control Group',
                           icon_emoji=':robot_face:', attachments=[attach])
 
+    def announce_solved(self, puzzle_name: str, answer: str) -> None:
+        self.log_and_send('Announcing puzzle solved', 'chat.postMessage',
+                          channel=self.unlocks_channel_id,
+                          text=f'*{puzzle_name}* is solved! The answer was *{answer}*!',
+                          username='Control Group', icon_emoji=':robot_face:',)
+
     def solved(self, channel_name: str, answer: str) -> None:
         channel_id = self.get_channel_id_by_name(channel_name)
         archive = not self.is_channel_active(channel_id)

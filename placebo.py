@@ -143,6 +143,7 @@ class Placebo:
         self.google.mark_row_solved(row_index, answer)
         if channel_name:
             self.slack.solved(channel_name, answer)
+        self.slack.announce_solved(puzzle_name, answer)
 
     def _view_closed(self, view_id: str) -> None:
         self.slack.delete_in_progress_message(view_id)
